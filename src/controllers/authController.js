@@ -197,9 +197,9 @@ export const forgotPassword = async (req, res) => {
 
     await user.save();
 
-    const resetUrl = `${process.env.CLIENT_URL}/reset-password/${resetToken}`;
+    const resetUrl = `${process.env.FRONTEND_URL}/reset-password/${resetToken}`;
 
-    // 📩 Replace with email service later
+    // 🔔 Replace with real email service later
     console.log("RESET LINK:", resetUrl);
 
     res.json({
@@ -252,4 +252,3 @@ export const resetPassword = async (req, res) => {
     res.status(500).json({ success: false, message: "Server error" });
   }
 };
-
