@@ -37,7 +37,7 @@ app.use(express.json());
 
 // ============== ROOT =====================
 app.get('/', (req, res) => {
-  res.json({ message: 'Auth API is running 🚀' });
+  res.json({ message: 'RealSMS API is running 🚀' });
 });
 
 // ================= ROUTES =================
@@ -72,5 +72,6 @@ const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
+
 
 
