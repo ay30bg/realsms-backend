@@ -88,7 +88,7 @@ exports.initUSDTPayment = async (req, res) => {
       {
         price_amount: Number(amount),           // Amount user wants to fund
         price_currency: "usd",                  // Base currency
-        pay_currency: "usdt_trx",               // Target crypto: USDT on TRX
+        pay_currency: "usdttrc20",               // Target crypto: USDT on TRX
         order_id: `${user._id}-${Date.now()}`,  // Unique order ID
         order_description: `Funding wallet for ${user.email}`,
         success_url: `${FRONTEND_URL}/fund-success`,
