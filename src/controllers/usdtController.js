@@ -1,7 +1,7 @@
 // // import axios from "axios";
 
 // // // Environment variables
-// // const NOWPAYMENTS_API_KEY = process.env.NOWPAYMENTS_API_KEY;
+// // const NOWPAYMENTS_API_KEY = process.env.NOWPAYMENTS_API_KEY; 
 // // const FRONTEND_URL = process.env.FRONTEND_URL;
 
 // // // Initialize USDT/TRX Payment
