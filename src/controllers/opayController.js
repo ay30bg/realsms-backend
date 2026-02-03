@@ -233,7 +233,7 @@ export const initOpayPayment = async (req, res) => {
       amount: { total: amount, currency: "NGN" },
       returnUrl: `${process.env.FRONTEND_URL}/payment-success`,
       cancelUrl: `${process.env.FRONTEND_URL}/payment-cancel`,
-      callbackUrl: `${process.env.FRONTEND_URL}/api/opay/webhook`,
+      callbackUrl: `${process.env.BACKEND_URL}/api/opay/webhook`,
       userInfo: { userId, userName: req.user.name || "RealSMS User" },
     };
 
