@@ -147,7 +147,7 @@ const FRONTEND_URL = process.env.FRONTEND_URL;
 // Initialize USDT/TRC20 Payment
 exports.initUSDTPayment = async (req, res) => {
   const { amount } = req.body;
-  const user = req.user; // Comes from your protect middleware
+  const user = req.user; // Comes from protect middleware
 
   if (!amount) {
     return res.status(400).json({ message: "Amount is required" });
@@ -158,9 +158,9 @@ exports.initUSDTPayment = async (req, res) => {
   }
 
   try {
-    // Create a payment via NowPayments API
+    // ✅ Create an invoice via NowPayments API
     const response = await axios.post(
-      "https://api.nowpayments.io/v1/payment",
+      "https://api.nowpayments.io/v1/invoice",
       {
         price_amount: Number(amount),                 // Amount user wants to fund
         price_currency: "usd",                        // Base currency
@@ -178,9 +178,11 @@ exports.initUSDTPayment = async (req, res) => {
       }
     );
 
-    // ✅ Return payment URL to frontend mapped as invoice_url
+    console.log("NowPayments invoice response:", response.data);
+
+    // Return invoice_url to frontend
     res.json({
-      invoice_url: response.data.payment_url, // maps NowPayments payment_url
+      invoice_url: response.data.invoice_url, // frontend will redirect here
     });
   } catch (err) {
     console.error("NowPayments error:", err.response?.data || err.message);
