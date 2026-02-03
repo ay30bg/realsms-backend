@@ -1,12 +1,13 @@
-import express from "express";
-import { initUSDTPayment, usdtWebhook } from "../controllers/usdtController.js";
+// routes/usdtRoutes.js
+const express = require('express');
+const { initUSDTPayment, usdtWebhook } = require('../controllers/usdtController');
 
 const router = express.Router();
 
-// Initialize payment
-router.post("/init", initUSDTPayment);
+// POST /api/usdt/init
+router.post('/init', initUSDTPayment);
 
-// Webhook for NowPayments
-router.post("/webhook", usdtWebhook);
+// POST /api/usdt/webhook
+router.post('/webhook', usdtWebhook);
 
-export default router;
+module.exports = router; // ✅ make sure to export router
