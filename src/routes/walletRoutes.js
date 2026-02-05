@@ -1,15 +1,20 @@
-import express from "express";
-import {
+const express = require('express');
+const router = express.Router();
+const {
   getWalletBalance,
   creditWallet,
   debitWallet,
-} from "../controllers/walletController.js";
-import { protect } from "../middleware/authMiddleware.js";
+} = require('../controllers/walletController');
 
-const router = express.Router();
+const { protect } = require('../middleware/authMiddleware');
 
-router.get("/balance", protect, getWalletBalance);
-router.post("/credit", protect, creditWallet);
-router.post("/debit", protect, debitWallet);
+// GET balance
+router.get('/balance', protect, getWalletBalance);
 
-export default router;
+// CREDIT wallet (after payment verified)
+router.post('/credit', protect, creditWallet);
+
+// DEBIT wallet (for purchases)
+router.post('/debit', protect, debitWallet);
+
+module.exports = router;
