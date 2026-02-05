@@ -8,6 +8,7 @@ require('dotenv').config();
 const authRoutes = require('./routes/authRoutes');
 const opayRoutes = require('./routes/opayRoutes');
 const usdtRoutes = require('./routes/usdtRoutes');
+const walletRoutes = require('./routes/walletRoutes');
 
 const app = express();
 
@@ -45,6 +46,7 @@ app.get('/', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/opay', opayRoutes);
 app.use('/api/usdt', usdtRoutes); 
+app.use('/api/wallet', walletRoutes);
 
 // ================= MONGODB =================
 mongoose
@@ -74,6 +76,7 @@ const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
+
 
 
 
