@@ -115,6 +115,7 @@
 import axios from "axios";
 import crypto from "crypto";
 import User from "../models/User.js";
+import Transaction from "../models/Transaction.js";
 
 const NOWPAYMENTS_API_KEY = process.env.NOWPAYMENTS_API_KEY;
 const FRONTEND_URL = process.env.FRONTEND_URL;
@@ -131,7 +132,6 @@ export const initUSDTPayment = async (req, res) => {
     return res.status(400).json({ message: "Amount is required" });
   }
 
-  // 🔒 Minimum amount enforced by your business logic
   if (Number(amount) < 10) {
     return res
       .status(400)
@@ -142,17 +142,15 @@ export const initUSDTPayment = async (req, res) => {
     const response = await axios.post(
       "https://api.nowpayments.io/v1/invoice",
       {
-        price_amount: Number(amount),       // USD pricing
+        price_amount: Number(amount),
         price_currency: "usd",
-        pay_currency: "usdttrc20",          // TRC20 USDT
+        pay_currency: "usdttrc20",
 
         order_id: `${user._id}-${Date.now()}`,
         order_description: `Funding wallet for ${user.email}`,
 
         success_url: `${FRONTEND_URL}/fund-success`,
         cancel_url: `${FRONTEND_URL}/fund-cancel`,
-
-        // ✅ REQUIRED TO UPDATE BALANCE
         ipn_callback_url: `${BACKEND_URL}/api/usdt/webhook`,
       },
       {
@@ -163,16 +161,24 @@ export const initUSDTPayment = async (req, res) => {
       }
     );
 
+    // 📝 Store transaction as PENDING
+    await Transaction.create({
+      userId: user._id,
+      reference: response.data.id,  // NowPayments invoice ID
+      amount: Number(amount),
+      status: "PENDING",
+      provider: "NOWPAYMENTS",
+    });
+
     return res.json({
       invoice_url: response.data.invoice_url,
-      price_amount: response.data.price_amount,   // Optional: show exact amount
+      reference: response.data.id,
       pay_currency: response.data.pay_currency,
+      price_amount: response.data.price_amount,
     });
   } catch (err) {
     console.error("NowPayments init error:", err.response?.data || err.message);
-    return res.status(500).json({
-      message: "Payment initialization failed",
-    });
+    return res.status(500).json({ message: "Payment initialization failed" });
   }
 };
 
@@ -183,7 +189,6 @@ export const usdtWebhook = async (req, res) => {
   const payload = req.body;
 
   try {
-    // 🔐 VERIFY SIGNATURE
     const receivedSig = req.headers["x-nowpayments-sig"];
     const expectedSig = crypto
       .createHmac("sha512", NOWPAYMENTS_API_KEY)
@@ -195,23 +200,26 @@ export const usdtWebhook = async (req, res) => {
       return res.status(401).json({ ok: false });
     }
 
-    // ✅ PROCESS COMPLETED PAYMENTS ONLY
+    // Only process completed payments
     if (payload.payment_status === "finished") {
       const [userId] = payload.order_id.split("-");
 
-      // 🛑 Prevent double-credit
+      // Prevent double-credit
       if (!payload.already_paid) {
         const user = await User.findByIdAndUpdate(
           userId,
-          {
-            $inc: { walletBalance: payload.pay_amount }, // credit wallet
-          },
+          { $inc: { walletBalance: payload.pay_amount } },
           { new: true }
         );
 
         if (user) {
-          console.log(
-            `✅ Wallet credited: ${payload.pay_amount} USDT → User ${userId}`
+          console.log(`✅ Wallet credited: ${payload.pay_amount} USDT → User ${userId}`);
+
+          // ✅ Update transaction status
+          await Transaction.findOneAndUpdate(
+            { reference: payload.id },   // match invoice ID
+            { status: "SUCCESS" },
+            { new: true }
           );
         } else {
           console.warn(`⚠️ User not found: ${userId}`);
@@ -219,6 +227,12 @@ export const usdtWebhook = async (req, res) => {
       } else {
         console.log(`⚠️ Payment already processed for order ${payload.order_id}`);
       }
+    } else {
+      // Optionally mark failed payments
+      await Transaction.findOneAndUpdate(
+        { reference: payload.id },
+        { status: payload.payment_status.toUpperCase() || "FAILED" }
+      );
     }
 
     return res.status(200).json({ ok: true });
@@ -227,3 +241,4 @@ export const usdtWebhook = async (req, res) => {
     return res.status(500).json({ ok: false });
   }
 };
+
