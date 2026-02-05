@@ -13,7 +13,7 @@ exports.initUSDTPayment = async (req, res) => {
     return res.status(400).json({ message: "Amount is required" });
   }
 
-  if (Number(amount) < 4) {
+  if (Number(amount) < 5) {
     return res.status(400).json({ message: "Minimum funding amount is 3 USDT" });
   }
 
