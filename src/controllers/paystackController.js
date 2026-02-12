@@ -1,4 +1,4 @@
-// src/controllers/paystackController.js (CommonJS)
+// src/controllers/paystackController.js
 const axios = require("axios");
 const crypto = require("crypto");
 const User = require("../models/User");
@@ -23,7 +23,7 @@ const initPaystackPayment = async (req, res) => {
       "https://api.paystack.co/transaction/initialize",
       {
         email: user.email,
-        amount: amount * 100, // Paystack expects amount in kobo
+        amount: amount * 100,
         callback_url: `${FRONTEND_URL}/fund-success`,
       },
       {
@@ -76,17 +76,15 @@ const paystackWebhook = async (req, res) => {
     const event = req.body;
 
     if (event.event === "charge.success") {
-      const { reference, amount } = event.data; // amount in kobo
+      const { reference, amount } = event.data;
       const transaction = await Transaction.findOne({ reference });
 
       if (!transaction || transaction.status === "SUCCESS") {
         return res.status(200).send("Already processed");
       }
 
-      // Convert kobo → Naira
       const ngnAmount = amount / 100;
 
-      // Credit user wallet
       const user = await User.findByIdAndUpdate(
         transaction.userId,
         { $inc: { walletBalanceNGN: ngnAmount } },
@@ -98,7 +96,6 @@ const paystackWebhook = async (req, res) => {
         return res.status(200).send("User not found");
       }
 
-      // Update transaction
       transaction.status = "SUCCESS";
       transaction.ngnAmount = ngnAmount;
       await transaction.save();
