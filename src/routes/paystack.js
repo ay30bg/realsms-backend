@@ -1,13 +1,24 @@
-import express from "express";
-import { initPaystackPayment, paystackWebhook } from "../controllers/paystackController.js";
-import { authMiddleware } from "../middleware/authMiddleware.js";
-
+// src/routes/paystack.js
+const express = require("express");
 const router = express.Router();
 
-// POST /api/paystack/init
+// Import controllers (CommonJS style)
+const {
+  initPaystackPayment,
+  paystackWebhook,
+} = require("../controllers/paystackController");
+
+// Auth middleware (CommonJS style)
+const { authMiddleware } = require("../middleware/auth");
+
+// -----------------------------
+// Initialize Paystack payment (protected route)
+// -----------------------------
 router.post("/init", authMiddleware, initPaystackPayment);
 
-// POST /api/paystack/webhook
-router.post("/webhook", express.json(), paystackWebhook);
+// -----------------------------
+// Paystack webhook (no auth)
+// -----------------------------
+router.post("/webhook", express.raw({ type: "*/*" }), paystackWebhook);
 
-export default router;
+module.exports = router;
