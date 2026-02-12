@@ -1,16 +1,16 @@
-import axios from "axios";
-import crypto from "crypto";
-import User from "../models/User.js";
-import Transaction from "../models/Transaction.js";
+// src/controllers/paystackController.js (CommonJS)
+const axios = require("axios");
+const crypto = require("crypto");
+const User = require("../models/User");
+const Transaction = require("../models/Transaction");
 
 const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY;
 const FRONTEND_URL = process.env.FRONTEND_URL;
-const BACKEND_URL = process.env.BACKEND_URL;
 
 // -----------------------------
 // Initialize Paystack payment
 // -----------------------------
-export const initPaystackPayment = async (req, res) => {
+const initPaystackPayment = async (req, res) => {
   const { amount } = req.body;
   const user = req.user;
 
@@ -40,7 +40,7 @@ export const initPaystackPayment = async (req, res) => {
       reference: response.data.data.reference,
       usdtAmount: 0,
       ngnAmount: amount,
-      exchangeRate: 1, // optional for NGN
+      exchangeRate: 1,
       status: "PENDING",
       provider: "PAYSTACK",
     });
@@ -56,9 +56,9 @@ export const initPaystackPayment = async (req, res) => {
 };
 
 // -----------------------------
-// Paystack webhook to verify payment
+// Paystack webhook
 // -----------------------------
-export const paystackWebhook = async (req, res) => {
+const paystackWebhook = async (req, res) => {
   try {
     const secret = PAYSTACK_SECRET_KEY;
 
@@ -75,7 +75,6 @@ export const paystackWebhook = async (req, res) => {
 
     const event = req.body;
 
-    // Only handle successful payments
     if (event.event === "charge.success") {
       const { reference, amount } = event.data; // amount in kobo
       const transaction = await Transaction.findOne({ reference });
@@ -112,4 +111,10 @@ export const paystackWebhook = async (req, res) => {
     console.error("Paystack webhook error:", err.message);
     res.status(500).send("Webhook error");
   }
+};
+
+// Export as CommonJS
+module.exports = {
+  initPaystackPayment,
+  paystackWebhook,
 };
