@@ -9,7 +9,7 @@ const {
 } = require("../controllers/paystackController");
 
 // Auth middleware (CommonJS style)
-const { authMiddleware } = require("../middleware/auth");
+const { authMiddleware } = require("../middleware/authMiddleware");
 
 // -----------------------------
 // Initialize Paystack payment (protected route)
