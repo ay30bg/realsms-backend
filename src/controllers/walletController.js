@@ -67,18 +67,15 @@
 // };
 
 
-const User = require("../models/User");
+import User from "../models/User.js";
 
-// ======================================
 // GET WALLET BALANCE
-// ======================================
-const getWalletBalance = async (req, res, next) => {
+export const getWalletBalance = async (req, res, next) => {
   try {
     if (!req.user) {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
-    // Always fetch fresh user from DB (safer than relying only on req.user)
     const user = await User.findById(req.user._id).select("walletBalance");
 
     if (!user) {
@@ -94,18 +91,10 @@ const getWalletBalance = async (req, res, next) => {
   }
 };
 
-// ======================================
-// CREDIT WALLET (Manual / Admin Use)
-// ======================================
-const creditWallet = async (req, res, next) => {
+// CREDIT
+export const creditWallet = async (req, res, next) => {
   try {
-    const { amount } = req.body;
-
-    if (!req.user) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
-
-    const parsedAmount = Number(amount);
+    const parsedAmount = Number(req.body.amount);
 
     if (!parsedAmount || parsedAmount <= 0) {
       return res.status(400).json({ message: "Invalid amount" });
@@ -117,7 +106,7 @@ const creditWallet = async (req, res, next) => {
       { new: true }
     );
 
-    return res.json({
+    res.json({
       message: "Wallet credited successfully",
       walletBalance: user.walletBalance,
     });
@@ -127,29 +116,16 @@ const creditWallet = async (req, res, next) => {
   }
 };
 
-// ======================================
-// DEBIT WALLET
-// ======================================
-const debitWallet = async (req, res, next) => {
+// DEBIT
+export const debitWallet = async (req, res, next) => {
   try {
-    const { amount } = req.body;
-
-    if (!req.user) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
-
-    const parsedAmount = Number(amount);
+    const parsedAmount = Number(req.body.amount);
 
     if (!parsedAmount || parsedAmount <= 0) {
       return res.status(400).json({ message: "Invalid amount" });
     }
 
-    // Fetch fresh balance
     const user = await User.findById(req.user._id);
-
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
-    }
 
     if (user.walletBalance < parsedAmount) {
       return res.status(400).json({ message: "Insufficient balance" });
@@ -158,7 +134,7 @@ const debitWallet = async (req, res, next) => {
     user.walletBalance -= parsedAmount;
     await user.save();
 
-    return res.json({
+    res.json({
       message: "Payment successful",
       walletBalance: user.walletBalance,
     });
@@ -166,10 +142,4 @@ const debitWallet = async (req, res, next) => {
     console.error("Debit wallet error:", err.message);
     next(err);
   }
-};
-
-module.exports = {
-  getWalletBalance,
-  creditWallet,
-  debitWallet,
 };
