@@ -69,21 +69,23 @@
 
 import User from "../models/User.js";
 
+// ================================
 // GET WALLET BALANCE
+// ================================
 export const getWalletBalance = async (req, res, next) => {
   try {
     if (!req.user) {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
-    const user = await User.findById(req.user._id).select("walletBalance");
+    const user = await User.findById(req.user._id).select("walletBalanceNGN");
 
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
 
     return res.json({
-      walletBalance: user.walletBalance || 0,
+      walletBalanceNGN: user.walletBalanceNGN || 0,
     });
   } catch (err) {
     console.error("Get wallet balance error:", err.message);
@@ -91,7 +93,9 @@ export const getWalletBalance = async (req, res, next) => {
   }
 };
 
-// CREDIT
+// ================================
+// CREDIT WALLET
+// ================================
 export const creditWallet = async (req, res, next) => {
   try {
     const parsedAmount = Number(req.body.amount);
@@ -102,13 +106,13 @@ export const creditWallet = async (req, res, next) => {
 
     const user = await User.findByIdAndUpdate(
       req.user._id,
-      { $inc: { walletBalance: parsedAmount } },
+      { $inc: { walletBalanceNGN: parsedAmount } }, // ✅ Using walletBalanceNGN
       { new: true }
     );
 
     res.json({
       message: "Wallet credited successfully",
-      walletBalance: user.walletBalance,
+      walletBalanceNGN: user.walletBalanceNGN,
     });
   } catch (err) {
     console.error("Credit wallet error:", err.message);
@@ -116,7 +120,9 @@ export const creditWallet = async (req, res, next) => {
   }
 };
 
-// DEBIT
+// ================================
+// DEBIT WALLET
+// ================================
 export const debitWallet = async (req, res, next) => {
   try {
     const parsedAmount = Number(req.body.amount);
@@ -127,16 +133,16 @@ export const debitWallet = async (req, res, next) => {
 
     const user = await User.findById(req.user._id);
 
-    if (user.walletBalance < parsedAmount) {
+    if (user.walletBalanceNGN < parsedAmount) {
       return res.status(400).json({ message: "Insufficient balance" });
     }
 
-    user.walletBalance -= parsedAmount;
+    user.walletBalanceNGN -= parsedAmount;
     await user.save();
 
     res.json({
       message: "Payment successful",
-      walletBalance: user.walletBalance,
+      walletBalanceNGN: user.walletBalanceNGN,
     });
   } catch (err) {
     console.error("Debit wallet error:", err.message);
