@@ -1,30 +1,28 @@
-// src/controllers/paystackController.js
 const axios = require("axios");
-const crypto = require("crypto");
 const User = require("../models/User");
 const Transaction = require("../models/Transaction");
 
 const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY;
 const FRONTEND_URL = process.env.FRONTEND_URL;
+const BACKEND_URL = process.env.BACKEND_URL;
 
-// -----------------------------
-// Initialize Paystack payment
-// -----------------------------
-const initPaystackPayment = async (req, res) => {
-  const { amount } = req.body;
-  const user = req.user;
-
-  if (!amount || amount <= 0) {
-    return res.status(400).json({ message: "Invalid amount" });
-  }
-
+// =============================
+// Initialize Payment
+// =============================
+exports.initializePayment = async (req, res) => {
   try {
+    const { amount } = req.body;
+
+    if (!amount || amount < 100) {
+      return res.status(400).json({ message: "Invalid amount" });
+    }
+
     const response = await axios.post(
       "https://api.paystack.co/transaction/initialize",
       {
-        email: user.email,
+        email: req.user.email,
         amount: amount * 100,
-        callback_url: `${FRONTEND_URL}/fund-success`,
+        callback_url: `${BACKEND_URL}/api/paystack/verify`,
       },
       {
         headers: {
@@ -34,84 +32,75 @@ const initPaystackPayment = async (req, res) => {
       }
     );
 
-    // Save transaction as PENDING
+    const paymentData = response.data.data;
+
     await Transaction.create({
-      userId: user._id,
-      reference: response.data.data.reference,
-      usdtAmount: 0,
-      ngnAmount: amount,
-      exchangeRate: 1,
-      status: "PENDING",
+      user: req.user._id,
+      reference: paymentData.reference,
+      amount,
+      currency: "NGN",
       provider: "PAYSTACK",
+      status: "PENDING",
     });
 
     res.json({
-      paymentUrl: response.data.data.authorization_url,
-      reference: response.data.data.reference,
+      paymentUrl: paymentData.authorization_url,
     });
-  } catch (err) {
-    console.error("Paystack init error:", err.response?.data || err.message);
+  } catch (error) {
+    console.error(error.response?.data || error.message);
     res.status(500).json({ message: "Payment initialization failed" });
   }
 };
 
-// -----------------------------
-// Paystack webhook
-// -----------------------------
-const paystackWebhook = async (req, res) => {
+// =============================
+// Verify Payment
+// =============================
+exports.verifyPayment = async (req, res) => {
   try {
-    const secret = PAYSTACK_SECRET_KEY;
+    const { reference } = req.query;
 
-    // Paystack sends signature in headers
-    const hash = crypto
-      .createHmac("sha512", secret)
-      .update(JSON.stringify(req.body))
-      .digest("hex");
-
-    if (hash !== req.headers["x-paystack-signature"]) {
-      console.warn("❌ Invalid Paystack signature");
-      return res.status(401).send("Unauthorized");
+    if (!reference) {
+      return res.redirect(`${FRONTEND_URL}/fund-cancel`);
     }
 
-    const event = req.body;
+    const transaction = await Transaction.findOne({ reference });
 
-    if (event.event === "charge.success") {
-      const { reference, amount } = event.data;
-      const transaction = await Transaction.findOne({ reference });
+    if (!transaction) {
+      return res.redirect(`${FRONTEND_URL}/fund-cancel`);
+    }
 
-      if (!transaction || transaction.status === "SUCCESS") {
-        return res.status(200).send("Already processed");
+    if (transaction.status === "SUCCESS") {
+      return res.redirect(`${FRONTEND_URL}/fund-success`);
+    }
+
+    const response = await axios.get(
+      `https://api.paystack.co/transaction/verify/${reference}`,
+      {
+        headers: {
+          Authorization: `Bearer ${PAYSTACK_SECRET_KEY}`,
+        },
       }
+    );
 
-      const ngnAmount = amount / 100;
+    const paymentData = response.data.data;
 
-      const user = await User.findByIdAndUpdate(
-        transaction.userId,
-        { $inc: { walletBalanceNGN: ngnAmount } },
-        { new: true }
-      );
-
-      if (!user) {
-        console.warn("⚠️ User not found for transaction:", reference);
-        return res.status(200).send("User not found");
-      }
-
-      transaction.status = "SUCCESS";
-      transaction.ngnAmount = ngnAmount;
+    if (paymentData.status !== "success") {
+      transaction.status = "FAILED";
       await transaction.save();
-
-      console.log(`✅ Credited ₦${ngnAmount} to user ${user._id}`);
+      return res.redirect(`${FRONTEND_URL}/fund-cancel`);
     }
 
-    res.status(200).send("OK");
-  } catch (err) {
-    console.error("Paystack webhook error:", err.message);
-    res.status(500).send("Webhook error");
-  }
-};
+    const user = await User.findById(transaction.user);
 
-// Export as CommonJS
-module.exports = {
-  initPaystackPayment,
-  paystackWebhook,
+    user.walletBalanceNGN += transaction.amount;
+    await user.save();
+
+    transaction.status = "SUCCESS";
+    await transaction.save();
+
+    res.redirect(`${FRONTEND_URL}/fund-success`);
+  } catch (error) {
+    console.error(error);
+    res.redirect(`${FRONTEND_URL}/fund-cancel`);
+  }
 };
