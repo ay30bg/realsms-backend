@@ -10,6 +10,7 @@ const opayRoutes = require('./routes/opayRoutes');
 const usdtRoutes = require('./routes/usdtRoutes');
 const walletRoutes = require('./routes/walletRoutes');
 const paystackRoutes = require("./routes/paystackRoutes");
+const fiveSimRoutes = require("./routes/fiveSimRoutes");
 
 const app = express();
 
@@ -49,6 +50,7 @@ app.use('/api/opay', opayRoutes);
 app.use('/api/usdt', usdtRoutes); 
 app.use('/api/wallet', walletRoutes);
 app.use("/api/paystack", paystackRoutes); 
+app.use("/api/5sim", fiveSimRoutes);
 
 // ================= MONGODB =================
 mongoose
@@ -78,6 +80,7 @@ const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
+
 
 
 
