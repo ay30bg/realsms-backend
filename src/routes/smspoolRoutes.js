@@ -18,7 +18,7 @@ const {
   getServices,
   buyNumber,
   getOtp,
-} = require("../controllers/smspoolController");
+} = require("../controllers/smsController");
 const { protect } = require("../middleware/authMiddleware");
 
 // ---------------- ROUTES ----------------
