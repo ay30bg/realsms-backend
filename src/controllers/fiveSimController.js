@@ -85,50 +85,31 @@ exports.buyNumber = async (req, res) => {
   }
 
   try {
-    // Make request to 5sim official API
     const response = await axios.post(
       "https://5sim.net/v1/user/buy/activation",
-      {
-        country: country,
-        operator: service,
-      },
+      { country, operator: service },
       {
         headers: {
           Authorization: `Bearer ${process.env.FIVSIM_API_KEY}`,
           "Content-Type": "application/json",
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
+            "(KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36",
+          Accept: "application/json",
         },
-        timeout: 10000, // optional: 10s timeout
+        timeout: 10000, // 10 seconds timeout
       }
     );
 
     const data = response.data;
 
-    // Check for expected fields
-    if (!data.id || !data.number) {
-      return res.status(500).json({
-        success: false,
-        message: "Invalid response from 5sim API",
-        rawData: data,
-      });
-    }
-
-    return res.json({
-      success: true,
-      numberData: {
-        id: data.id,
-        number: data.number,
-        price: data.price,
-        country: data.country,
-        operator: data.operator,
-        status: data.status,
-      },
-    });
+    return res.json({ success: true, numberData: data });
   } catch (err) {
-    console.error("5sim buyNumber error:", err.response?.data || err.message);
+    console.error("Buy number error:", err.response?.data || err.message);
 
     return res.status(400).json({
       success: false,
-      message: "Failed to buy number",
+      message: "Failed to buy number. Please try again.",
       error: err.response?.data || err.message,
     });
   }
@@ -145,33 +126,29 @@ exports.checkOtp = async (req, res) => {
   }
 
   try {
-    const response = await axios.get(
-      `https://5sim.net/v1/user/check/${orderId}`,
-      {
-        headers: {
-          Authorization: `Bearer ${process.env.FIVSIM_API_KEY}`,
-        },
-        timeout: 10000, // optional: 10s timeout
-      }
-    );
+    const response = await axios.get(`https://5sim.net/v1/user/check/${orderId}`, {
+      headers: {
+        Authorization: `Bearer ${process.env.FIVSIM_API_KEY}`,
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
+          "(KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36",
+        Accept: "application/json",
+      },
+      timeout: 10000,
+    });
 
     const data = response.data;
 
-    // If OTP received, return it
-    if (data.status === "RECEIVED" && data.code) {
+    // status can be WAITING, RECEIVED, EXPIRED, CANCELLED
+    if (data.status === "RECEIVED") {
       return res.json({ otp: data.code });
+    } else if (data.status === "EXPIRED" || data.status === "CANCELLED") {
+      return res.json({ otp: null, expired: true });
+    } else {
+      return res.json({ otp: null });
     }
-
-    // If still waiting or other status, return null
-    return res.json({ otp: null, status: data.status });
   } catch (err) {
-    console.error("5sim checkOtp error:", err.response?.data || err.message);
-
-    return res.status(400).json({
-      success: false,
-      otp: null,
-      message: "Failed to check OTP",
-      error: err.response?.data || err.message,
-    });
+    console.error("Check OTP error:", err.response?.data || err.message);
+    return res.status(400).json({ otp: null, error: err.response?.data || err.message });
   }
 };
