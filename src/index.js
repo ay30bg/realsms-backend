@@ -51,7 +51,7 @@ app.use('/api/opay', opayRoutes);
 app.use('/api/usdt', usdtRoutes); 
 app.use('/api/wallet', walletRoutes);
 app.use("/api/paystack", paystackRoutes); 
-app.use("/api/5sim", orderRoutes);
+app.use("/api/5sim", fiveSimRoutes);
 app.use("/api/transactions", transactionRoutes);
 
 // ================= MONGODB =================
@@ -82,6 +82,7 @@ const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
+
 
 
 
