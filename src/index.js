@@ -10,7 +10,7 @@ const opayRoutes = require('./routes/opayRoutes');
 const usdtRoutes = require('./routes/usdtRoutes');
 const walletRoutes = require('./routes/walletRoutes');
 const paystackRoutes = require("./routes/paystackRoutes");
-const orderRoutes = require("./routes/orderRoutes");
+const orderRoutes = require("./routes/fiveSimRoutes");
 const transactionRoutes = require("./routes/transactionsRoutes");
 
 const app = express();
@@ -82,6 +82,7 @@ const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
+
 
 
 
