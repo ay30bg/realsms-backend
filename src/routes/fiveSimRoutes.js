@@ -1,11 +1,10 @@
-// routes/fiveSimRoutes.js
 const express = require("express");
-const router = express.Router();
-const auth = require("../middleware/authMiddleware");
-const controller = require("../controllers/fiveSimController");
+const { buyNumber, checkOtp } = require("../controllers/fiveSimController");
+const { protect } = require("../middleware/authMiddleware");
 
-router.post("/buy-number", auth, controller.buyNumber);
-router.post("/check-otp", auth, controller.checkOtp);
-router.post("/cancel", auth, controller.cancelOrder);
+const router = express.Router();
+
+router.post("/buy-number", protect, buyNumber);
+router.post("/check-otp", protect, checkOtp);
 
 module.exports = router;
