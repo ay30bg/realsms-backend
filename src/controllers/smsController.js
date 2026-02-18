@@ -3,20 +3,19 @@ const axios = require("axios");
 const SMSPOOL_BASE_URL = "https://api.smspool.net";
 const API_KEY = process.env.SMS_POOL_API_KEY;
 
-// Change this to current rate when needed
+// Change this when rate changes
 const USD_TO_NGN = 1000;
 
-const headers = {
-  Authorization: `Bearer ${API_KEY}`,
-  "Content-Type": "application/json",
-};
-
-// ---------------- GET COUNTRIES ----------------
+/* =====================================================
+   GET ALL COUNTRIES
+===================================================== */
 const getServers = async (req, res) => {
   try {
     const response = await axios.get(
       `${SMSPOOL_BASE_URL}/country/retrieve_all`,
-      { headers }
+      {
+        params: { key: API_KEY },
+      }
     );
 
     const countries = response.data.map((c) => ({
@@ -27,22 +26,28 @@ const getServers = async (req, res) => {
 
     res.json(countries);
   } catch (err) {
-    console.error(err.response?.data || err.message);
+    console.error("Country Error:", err.response?.data || err.message);
     res.status(500).json([]);
   }
 };
 
-// ---------------- GET SERVICES + PRICE (NGN) ----------------
+/* =====================================================
+   GET SERVICES + PRICE (CONVERTED TO NAIRA)
+===================================================== */
 const getServices = async (req, res) => {
   try {
     const servicesRes = await axios.get(
       `${SMSPOOL_BASE_URL}/service/retrieve_all`,
-      { headers }
+      {
+        params: { key: API_KEY },
+      }
     );
 
     const pricingRes = await axios.get(
       `${SMSPOOL_BASE_URL}/request/pricing`,
-      { headers }
+      {
+        params: { key: API_KEY },
+      }
     );
 
     const servicesList = servicesRes.data;
@@ -62,7 +67,7 @@ const getServices = async (req, res) => {
       return {
         ID: s.ID,
         name: s.name,
-        price: priceInNaira, // NGN
+        price: priceInNaira, // converted to NGN
         pool: priceInfo?.pool || "default",
         countryID: priceInfo?.country || null,
         countryShort: priceInfo?.short_name || null,
@@ -71,50 +76,90 @@ const getServices = async (req, res) => {
 
     res.json(services);
   } catch (err) {
-    console.error(err.response?.data || err.message);
+    console.error("Service Error:", err.response?.data || err.message);
     res.status(500).json([]);
   }
 };
 
-// ---------------- BUY NUMBER ----------------
+/* =====================================================
+   BUY NUMBER
+===================================================== */
 const buyNumber = async (req, res) => {
   const { country, service, pool, max_price } = req.body;
+
+  // Validation
+  if (!country || !service) {
+    return res.status(400).json({
+      success: 0,
+      message: "Country and service are required",
+    });
+  }
 
   try {
     const response = await axios.post(
       `${SMSPOOL_BASE_URL}/purchase/sms`,
+      null,
       {
-        country,
-        service,
-        pool,
-        max_price, // must be USD
-        quantity: 1,
-      },
-      { headers }
+        params: {
+          key: API_KEY,
+          country,
+          service,
+          pool,
+          max_price, // must be in USD
+          quantity: 1,
+        },
+      }
     );
 
     res.json(response.data);
   } catch (err) {
-    console.error("Failed to buy number:", err.response?.data || err.message);
-    res.status(500).json(err.response?.data || { message: "Purchase failed" });
+    console.error(
+      "Failed to buy number:",
+      err.response?.data || err.message
+    );
+
+    res.status(500).json(
+      err.response?.data || {
+        success: 0,
+        message: "Purchase failed",
+      }
+    );
   }
 };
 
-// ---------------- GET OTP ----------------
+/* =====================================================
+   CHECK OTP
+===================================================== */
 const getOtp = async (req, res) => {
   const { orderid } = req.body;
+
+  if (!orderid) {
+    return res.status(400).json({
+      success: 0,
+      message: "Order ID is required",
+    });
+  }
 
   try {
     const response = await axios.post(
       `${SMSPOOL_BASE_URL}/sms/check`,
-      { orderid },
-      { headers }
+      null,
+      {
+        params: {
+          key: API_KEY,
+          orderid,
+        },
+      }
     );
 
     res.json(response.data);
   } catch (err) {
-    console.error(err.response?.data || err.message);
-    res.status(500).json({ otp: null });
+    console.error("OTP Error:", err.response?.data || err.message);
+
+    res.status(500).json({
+      success: 0,
+      message: "Failed to check OTP",
+    });
   }
 };
 
@@ -124,4 +169,3 @@ module.exports = {
   buyNumber,
   getOtp,
 };
-
