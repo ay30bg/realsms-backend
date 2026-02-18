@@ -162,20 +162,21 @@ const getServices = async (req, res) => {
     const servicesRes = await axios.get(`${SMSPOOL_BASE_URL}/service/retrieve_all`, { headers });
     const pricingRes = await axios.get(`${SMSPOOL_BASE_URL}/request/pricing`, { headers });
 
-    const servicesList = servicesRes.data;
-    const pricingList = pricingRes.data;
+    const servicesList = servicesRes.data || [];
+    const pricingList = pricingRes.data || [];
 
     const services = servicesList.map((s) => {
-      const priceInfo = pricingList.find((p) => p.service === s.ID);
+      // Match pricing by numeric ID, convert both to string to avoid mismatch
+      const priceInfo = pricingList.find((p) => String(p.service) === String(s.ID));
 
-      const priceUSD = priceInfo ? Number(priceInfo.price) : null;
-      const priceNGN = priceUSD ? priceUSD * USD_TO_NGN : null;
+      const priceUSD = priceInfo ? Number(priceInfo.price) : 0;   // fallback to 0
+      const priceNGN = priceUSD ? priceUSD * USD_TO_NGN : 0;
 
       return {
-        ID: s.ID,               // numeric ID for purchase
+        ID: s.ID,               // numeric ID to send when buying
         name: s.name,           // display name
-        priceUSD,               // USD price
-        priceNGN,               // NGN price
+        priceUSD,               // USD price (0 if missing)
+        priceNGN,               // NGN price (0 if missing)
         pool: priceInfo?.pool || "default",
         countryID: priceInfo?.country || null,
         countryShort: priceInfo?.short_name || null,
