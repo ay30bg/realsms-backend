@@ -1,10 +1,15 @@
 // const express = require("express");
-// const { getServices, buyNumber, getOtp } = require("../controllers/smsController");
+// const router = express.Router();
+// const {
+//   getServers,
+//   getServices,
+//   buyNumber,
+//   getOtp,
+// } = require("../controllers/smsController");
 // const { protect } = require("../middleware/authMiddleware");
 
-// const router = express.Router();
-
-// // All routes require auth
+// // ---------------- ROUTES ----------------
+// router.get("/servers", protect, getServers);
 // router.get("/services/:serverId", protect, getServices);
 // router.post("/buy", protect, buyNumber);
 // router.get("/otp/:number", protect, getOtp);
@@ -22,9 +27,18 @@ const {
 const { protect } = require("../middleware/authMiddleware");
 
 // ---------------- ROUTES ----------------
+
+// Get all countries/servers
 router.get("/servers", protect, getServers);
-router.get("/services/:serverId", protect, getServices);
+
+// Get all services (no serverId needed)
+router.get("/services", protect, getServices);
+
+// Buy number
 router.post("/buy", protect, buyNumber);
+
+// Get OTP for a purchased number
 router.get("/otp/:number", protect, getOtp);
 
 module.exports = router;
+
