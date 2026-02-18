@@ -323,7 +323,7 @@ const API_KEY = process.env.SMS_POOL_API_KEY;
 // USD → NGN rate
 const USD_TO_NGN = 1000;
 
-// Profit markup (e.g., 1.3 = 30% profit)
+// Profit markup (1.3 = 30% profit)
 const MARKUP = 1.3;
 
 const headers = {
@@ -334,17 +334,12 @@ const headers = {
 // ---------------- GET COUNTRIES ----------------
 const getServers = async (req, res) => {
   try {
-    const response = await axios.get(
-      `${SMSPOOL_BASE_URL}/country/retrieve_all`,
-      { headers }
-    );
-
+    const response = await axios.get(`${SMSPOOL_BASE_URL}/country/retrieve_all`, { headers });
     const countries = response.data.map((c) => ({
       ID: c.ID,
       name: c.name,
       short_name: c.short_name,
     }));
-
     res.json(countries);
   } catch (err) {
     console.error(err.response?.data || err.message);
@@ -352,48 +347,44 @@ const getServers = async (req, res) => {
   }
 };
 
-// ---------------- GET SERVICES + PRICE (NGN + MARKUP) ----------------
+// ---------------- GET SERVICES + PRICING ----------------
 const getServices = async (req, res) => {
   try {
-    const servicesRes = await axios.get(
-      `${SMSPOOL_BASE_URL}/service/retrieve_all`,
-      { headers }
-    );
+    const { country: countryId } = req.query; // optional country ID from frontend
 
-    const pricingRes = await axios.get(
-      `${SMSPOOL_BASE_URL}/request/pricing`,
-      { headers }
-    );
-
+    const servicesRes = await axios.get(`${SMSPOOL_BASE_URL}/service/retrieve_all`, { headers });
     const servicesList = servicesRes.data;
-    const pricingList = pricingRes.data;
 
-    // Map services with pricing and apply markup
-    const services = servicesList.map((s) => {
-      // Get first price entry for this service
-      const priceInfo = pricingList.find((p) => p.service === s.ID);
+    const services = await Promise.all(
+      servicesList.map(async (s) => {
+        try {
+          // Fetch pricing for each service (must pass service + country)
+          const pricingRes = await axios.get(`${SMSPOOL_BASE_URL}/request/pricing`, {
+            headers,
+            params: {
+              service: s.ID,
+              country: countryId || undefined, // if no country, SMSPool may default
+            },
+          });
 
-      let priceInNaira = null;
+          const priceUSD = Number(pricingRes.data?.price || 0);
+          if (!priceUSD) return null; // skip services without pricing
 
-      if (priceInfo) {
-        priceInNaira = Number(priceInfo.price) * USD_TO_NGN * MARKUP;
-      }
+          const priceNGN = priceUSD * USD_TO_NGN * MARKUP;
 
-      return {
-        ID: s.ID,
-        name: s.name,
-        priceUSD: priceInfo ? Number(priceInfo.price) : null,
-        priceNGN: priceInNaira,
-        pool: priceInfo?.pool || "default",
-        countryID: priceInfo?.country || null,
-        countryShort: priceInfo?.short_name || null,
-      };
-    });
+          return {
+            ID: s.ID,
+            name: s.name,
+            priceUSD,
+            priceNGN: Math.round(priceNGN), // round to nearest Naira
+          };
+        } catch (err) {
+          return null;
+        }
+      })
+    );
 
-    // Remove services without pricing
-    const filteredServices = services.filter((s) => s.priceUSD !== null);
-
-    res.json(filteredServices);
+    res.json(services.filter(Boolean));
   } catch (err) {
     console.error(err.response?.data || err.message);
     res.status(500).json([]);
@@ -404,13 +395,17 @@ const getServices = async (req, res) => {
 const buyNumber = async (req, res) => {
   const { country, service, pool, max_price } = req.body;
 
+  if (!country || !service || !max_price) {
+    return res.status(400).json({ message: "Missing required parameters" });
+  }
+
   try {
     const response = await axios.post(
       `${SMSPOOL_BASE_URL}/purchase/sms`,
       {
         country,
         service,
-        pool,
+        pool: pool || "default",
         max_price, // must be in USD
         quantity: 1,
       },
@@ -427,6 +422,8 @@ const buyNumber = async (req, res) => {
 // ---------------- GET OTP ----------------
 const getOtp = async (req, res) => {
   const { orderid } = req.body;
+
+  if (!orderid) return res.status(400).json({ otp: null });
 
   try {
     const response = await axios.post(
