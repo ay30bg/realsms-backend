@@ -115,27 +115,36 @@ const getServers = async (req, res) => {
   }
 };
 
-// ---------------- GET SERVICES ----------------
+// ---------------- GET SERVICES WITH PRICING ----------------
 const getServices = async (req, res) => {
   try {
-    const response = await axios.get(`${SMSPOOL_BASE_URL}/service/retrieve_all`, { headers });
+    // 1️⃣ Fetch all services
+    const servicesRes = await axios.get(`${SMSPOOL_BASE_URL}/service/retrieve_all`, { headers });
+    const servicesList = Array.isArray(servicesRes.data) ? servicesRes.data : [];
 
-    const services = (Array.isArray(response.data) ? response.data : []).map((s) => ({
-      ID: s.ID || s.id,
-      name: s.name || "Unknown Service",
-      // convert price to number, keep null if missing
-      price:
-        s.price !== undefined && s.price !== null
-          ? Number(s.price)
-          : null,
-      countryID: s.countryID || null,
-      icon: s.icon || null,
-      stock: s.stock !== undefined && s.stock !== null ? s.stock : "N/A",
-    }));
+    // 2️⃣ Fetch pricing info
+    const pricingRes = await axios.get(`${SMSPOOL_BASE_URL}/request/pricing`, { headers });
+    const pricingList = Array.isArray(pricingRes.data) ? pricingRes.data : [];
+
+    // 3️⃣ Merge service info with pricing
+    const services = servicesList.map((s) => {
+      const priceInfo = pricingList.find(
+        (p) => p.service === s.ID || p.service === s.id
+      );
+
+      return {
+        ID: s.ID || s.id,
+        name: s.name || s.service_name || "Unknown Service",
+        price: priceInfo ? Number(priceInfo.price) : null, // numeric price
+        countryID: priceInfo?.country || null,
+        countryShort: priceInfo?.short_name || null,
+        pool: priceInfo?.pool || null,
+      };
+    });
 
     res.json(services);
   } catch (err) {
-    console.error("Failed to fetch services:", err.response?.data || err.message);
+    console.error("Failed to fetch services with pricing:", err.response?.data || err.message);
     res.status(500).json([]);
   }
 };
