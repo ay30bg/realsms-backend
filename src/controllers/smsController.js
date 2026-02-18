@@ -104,8 +104,6 @@ const buyNumber = async (req, res) => {
           key: API_KEY,
           country,
           service,
-          pool,
-          max_price, // must be in USD
           quantity: 1,
         },
       }
