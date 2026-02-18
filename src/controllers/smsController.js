@@ -104,8 +104,8 @@ const getServers = async (req, res) => {
 
     const countries = (Array.isArray(response.data) ? response.data : []).map((c) => ({
       ID: c.ID || c.id,
-      name: c.name || c.country || "Unknown Country",
-      short_name: c.short_name || c.code || "",
+      name: c.name || c.country,
+      short_name: c.short_name || c.code,
     }));
 
     res.json(countries);
@@ -120,24 +120,18 @@ const getServices = async (req, res) => {
   try {
     const response = await axios.get(`${SMSPOOL_BASE_URL}/service/retrieve_all`, { headers });
 
-    const services = (Array.isArray(response.data) ? response.data : []).map((s) => {
-      // Determine price from multiple possible keys
-      const price =
+    const services = (Array.isArray(response.data) ? response.data : []).map((s) => ({
+      ID: s.ID || s.id,
+      name: s.name || "Unknown Service",
+      // convert price to number, keep null if missing
+      price:
         s.price !== undefined && s.price !== null
-          ? s.price
-          : s.price_per_unit !== undefined && s.price_per_unit !== null
-          ? s.price_per_unit
-          : s.cost !== undefined && s.cost !== null
-          ? s.cost
-          : 0;
-
-      return {
-        ID: s.ID || s.id,
-        name: s.name || s.service_name || "Unknown Service",
-        price: Number(price), // make sure price is numeric
-        countryID: s.countryID || s.country_id || null,
-      };
-    });
+          ? Number(s.price)
+          : null,
+      countryID: s.countryID || null,
+      icon: s.icon || null,
+      stock: s.stock !== undefined && s.stock !== null ? s.stock : "N/A",
+    }));
 
     res.json(services);
   } catch (err) {
