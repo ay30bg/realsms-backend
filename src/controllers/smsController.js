@@ -565,6 +565,7 @@ const getServices = async (req, res) => {
 
     const services = servicesList.map((s) => {
       const priceInfo = pricingList.find((p) => p.service === s.ID);
+
       const priceInNaira = priceInfo
         ? Number(priceInfo.price) * USD_TO_NGN
         : null;
@@ -600,8 +601,12 @@ const buyNumber = async (req, res) => {
 
   try {
     const user = await User.findById(req.user.id);
-    if (!user)
-      return res.status(404).json({ success: 0, message: "User not found" });
+
+    if (!user) {
+      return res
+        .status(404)
+        .json({ success: 0, message: "User not found" });
+    }
 
     // Get latest pricing
     const pricingRes = await axios.get(
@@ -609,21 +614,26 @@ const buyNumber = async (req, res) => {
       { params: { key: API_KEY } }
     );
 
-    const priceInfo = pricingRes.data.find((p) => p.service === service);
-    if (!priceInfo)
+    const priceInfo = pricingRes.data.find(
+      (p) => String(p.service) === String(service)
+    );
+
+    if (!priceInfo) {
       return res
         .status(400)
         .json({ success: 0, message: "Invalid service" });
+    }
 
     const priceNGN = Number(priceInfo.price) * USD_TO_NGN;
 
     if (user.walletBalanceNGN < priceNGN) {
-      return res
-        .status(400)
-        .json({ success: 0, message: "Insufficient balance" });
+      return res.status(400).json({
+        success: 0,
+        message: "Insufficient balance",
+      });
     }
 
-    // Purchase from SMSPool
+    // Purchase number
     const response = await axios.post(
       `${SMSPOOL_BASE_URL}/purchase/sms`,
       null,
@@ -637,8 +647,11 @@ const buyNumber = async (req, res) => {
       }
     );
 
-    if (response.data.success === 0) {
-      return res.status(500).json(response.data);
+    if (!response.data || response.data.success === 0) {
+      return res.status(500).json({
+        success: 0,
+        message: response.data?.message || "Purchase failed",
+      });
     }
 
     const { number, orderid } = response.data;
@@ -702,9 +715,9 @@ const getOtp = async (req, res) => {
 
     console.log("SMSPOOL CHECK RESPONSE:", response.data);
 
-    const { status, sms } = response.data;
+    const status = Number(response.data.status);
+    const sms = response.data.sms;
 
-    // Find order in DB
     const order = await Order.findOne({ orderid });
 
     if (!order) {
@@ -714,8 +727,8 @@ const getOtp = async (req, res) => {
       });
     }
 
-    // If OTP received
-    if (status === "completed" && sms) {
+    // ✅ OTP RECEIVED (Status 3)
+    if (status === 3 && sms) {
       const otp = sms.match(/\d{4,6}/)?.[0];
 
       order.otp = otp;
@@ -729,12 +742,19 @@ const getOtp = async (req, res) => {
       });
     }
 
-    // If cancelled or expired
-    if (status === "cancelled" || status === "failed") {
-      order.status = status;
+    // ❌ Cancelled / Expired (Status 4)
+    if (status === 4) {
+      order.status = "cancelled";
       await order.save();
+
+      return res.json({
+        success: 0,
+        otp: null,
+        message: "Order cancelled or expired",
+      });
     }
 
+    // ⏳ Still Waiting
     return res.json({
       success: 0,
       otp: null,
