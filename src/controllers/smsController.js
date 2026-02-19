@@ -343,14 +343,74 @@
 
 const axios = require("axios");
 const User = require("../models/User");
-const Order = require("../models/Order"); // Your order schema
+const Order = require("../models/Order");
 
 const SMSPOOL_BASE_URL = "https://api.smspool.net";
 const API_KEY = process.env.SMS_POOL_API_KEY;
 const USD_TO_NGN = 1000;
 
 /* =====================================================
-   BUY NUMBER WITH WALLET SAFE DEDUCTION AND SAVE TO DB
+   GET ALL COUNTRIES
+===================================================== */
+const getServers = async (req, res) => {
+  try {
+    const response = await axios.get(`${SMSPOOL_BASE_URL}/country/retrieve_all`, {
+      params: { key: API_KEY },
+    });
+
+    const countries = response.data.map((c) => ({
+      ID: c.ID,
+      name: c.name,
+      short_name: c.short_name,
+    }));
+
+    res.json(countries);
+  } catch (err) {
+    console.error("Country Error:", err.response?.data || err.message);
+    res.status(500).json([]);
+  }
+};
+
+/* =====================================================
+   GET SERVICES + PRICE (CONVERTED TO NAIRA)
+===================================================== */
+const getServices = async (req, res) => {
+  try {
+    const servicesRes = await axios.get(`${SMSPOOL_BASE_URL}/service/retrieve_all`, {
+      params: { key: API_KEY },
+    });
+
+    const pricingRes = await axios.get(`${SMSPOOL_BASE_URL}/request/pricing`, {
+      params: { key: API_KEY },
+    });
+
+    const servicesList = servicesRes.data;
+    const pricingList = pricingRes.data;
+
+    const services = servicesList.map((s) => {
+      const priceInfo = pricingList.find((p) => p.service === s.ID);
+      const priceInNaira = priceInfo ? Number(priceInfo.price) * USD_TO_NGN : null;
+
+      return {
+        ID: s.ID,
+        name: s.name,
+        price: priceInNaira,
+        pool: priceInfo?.pool || "default",
+        countryID: priceInfo?.country || null,
+        countryShort: priceInfo?.short_name || null,
+      };
+    });
+
+    res.json(services);
+  } catch (err) {
+    console.error("Service Error:", err.response?.data || err.message);
+    res.status(500).json([]);
+  }
+};
+
+/* =====================================================
+   BUY NUMBER WITH WALLET SAFE DEDUCTION
+   AND STORE ORDER IN DATABASE
 ===================================================== */
 const buyNumber = async (req, res) => {
   const { country, service } = req.body;
@@ -373,7 +433,7 @@ const buyNumber = async (req, res) => {
       return res.status(400).json({ success: 0, message: "Insufficient balance or invalid service" });
     }
 
-    // 3️⃣ Purchase number from SMSPool
+    // 3️⃣ Purchase number
     const response = await axios.post(`${SMSPOOL_BASE_URL}/purchase/sms`, null, {
       params: { key: API_KEY, country, service, quantity: 1 },
     });
@@ -383,7 +443,7 @@ const buyNumber = async (req, res) => {
     const number = response.data.number;
     const orderid = response.data.orderid;
 
-    // 4️⃣ Deduct wallet AFTER successful purchase
+    // 4️⃣ Deduct wallet
     user.walletBalanceNGN -= priceNGN;
     await user.save();
 
@@ -399,7 +459,6 @@ const buyNumber = async (req, res) => {
     });
     await order.save();
 
-    // 6️⃣ Return response to frontend
     res.json({
       success: 1,
       message: "Number purchased successfully",
@@ -413,7 +472,7 @@ const buyNumber = async (req, res) => {
 };
 
 /* =====================================================
-   CHECK OTP AND UPDATE DB
+   CHECK OTP AND UPDATE ORDER IN DB
 ===================================================== */
 const getOtp = async (req, res) => {
   const { orderid } = req.body;
@@ -425,15 +484,15 @@ const getOtp = async (req, res) => {
       params: { key: API_KEY, orderid },
     });
 
-    // Extract OTP from response
+    // Extract OTP from SMSPool response
     const otpText = response.data?.sms?.[0]?.text || response.data?.otp;
-    const otp = otpText?.match(/\d{4,6}/)?.[0]; // Extract 4-6 digit code if exists
+    const otp = otpText?.match(/\d{4,6}/)?.[0];
 
     // Update order in DB
     const order = await Order.findOne({ orderid });
     if (order) {
       order.otp = otp || null;
-      order.status = otp ? "received" : order.status;
+      if (otp) order.status = "received";
       await order.save();
     }
 
