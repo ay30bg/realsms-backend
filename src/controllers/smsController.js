@@ -174,83 +174,41 @@ const Order = require("../models/Order");
 
 const SMSPOOL_BASE_URL = "https://api.smspool.net";
 const API_KEY = process.env.SMS_POOL_API_KEY;
-const USD_TO_NGN = 1000; // Change when rate changes
+const USD_TO_NGN = 1000; // change when needed
 
-/* =====================================================
-   GET COUNTRIES
-===================================================== */
-exports.getServers = async (req, res) => {
+/* =========================================
+   GET ALL STOCK (NO FILTERING)
+========================================= */
+exports.getServices = async (req, res) => {
   try {
     const response = await axios.get(
-      `${SMSPOOL_BASE_URL}/country/retrieve_all`,
-      { params: { key: API_KEY } }
+      `${SMSPOOL_BASE_URL}/request/pricing`,
+      {
+        params: { key: API_KEY },
+      }
     );
 
-    const countries = response.data.map((c) => ({
-      ID: c.ID,
-      name: c.name,
-      short_name: c.short_name,
+    const services = response.data.map((item) => ({
+      ID: item.service,
+      country: item.country,
+      pool: item.pool || "default",
+      priceUSD: Number(item.price),
+      price: Number(item.price) * USD_TO_NGN,
+      stock: Number(item.stock || 0),
     }));
-
-    res.json(countries);
-  } catch (err) {
-    console.error("Country Error:", err.response?.data || err.message);
-    res.status(500).json([]);
-  }
-};
-
-/* =====================================================
-   GET SERVICES (FILTER BY COUNTRY)
-===================================================== */
-exports.getServices = async (req, res) => {
-  const { country } = req.query;
-
-  if (!country) return res.status(400).json([]);
-
-  try {
-    const [servicesRes, pricingRes] = await Promise.all([
-      axios.get(`${SMSPOOL_BASE_URL}/service/retrieve_all`, {
-        params: { key: API_KEY },
-      }),
-      axios.get(`${SMSPOOL_BASE_URL}/request/pricing`, {
-        params: { key: API_KEY, country },
-      }),
-    ]);
-
-    const servicesList = servicesRes.data;
-    const pricingList = pricingRes.data;
-
-    const services = servicesList
-      .map((s) => {
-        const priceInfo = pricingList.find(
-          (p) => Number(p.service) === Number(s.ID)
-        );
-
-        if (!priceInfo) return null;
-
-        return {
-          ID: s.ID,
-          name: s.name,
-          price: Number(priceInfo.price) * USD_TO_NGN,
-          priceUSD: Number(priceInfo.price),
-          stock: Number(priceInfo.stock || 0),
-          pool: priceInfo.pool || "default",
-        };
-      })
-      .filter(Boolean);
 
     res.json(services);
   } catch (err) {
-    console.error("Service Error:", err.response?.data || err.message);
+    console.error("Pricing Error:", err.response?.data || err.message);
     res.status(500).json([]);
   }
 };
 
-/* =====================================================
-   BUY NUMBER + SAVE ORDER
-===================================================== */
+/* =========================================
+   BUY NUMBER
+========================================= */
 exports.buyNumber = async (req, res) => {
-  const { country, service, priceUSD, serviceName } = req.body;
+  const { country, service, priceUSD } = req.body;
   const userId = req.user.id;
 
   if (!country || !service)
@@ -281,12 +239,12 @@ exports.buyNumber = async (req, res) => {
     const newOrder = await Order.create({
       user: userId,
       serviceId: service,
-      serviceName,
       country,
       orderid: data.orderid,
       number: data.number,
       priceUSD,
       priceNGN: priceUSD * USD_TO_NGN,
+      status: "waiting",
     });
 
     res.json({
@@ -304,9 +262,9 @@ exports.buyNumber = async (req, res) => {
   }
 };
 
-/* =====================================================
-   CHECK OTP + UPDATE ORDER
-===================================================== */
+/* =========================================
+   CHECK OTP
+========================================= */
 exports.getOtp = async (req, res) => {
   const { orderid } = req.body;
 
@@ -349,3 +307,5 @@ exports.getOtp = async (req, res) => {
     });
   }
 };
+
+      
