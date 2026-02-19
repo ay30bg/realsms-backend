@@ -19,8 +19,8 @@ router.get("/services", protect, getServices);
 // Buy number
 router.post("/buy", protect, buyNumber);
 
-// Get OTP for a purchased number
-router.get("/otp/:number", protect, getOtp);
+// Get OTP for a purchased number (POST with body)
+router.post("/otp", protect, getOtp);
 
 module.exports = router;
 
