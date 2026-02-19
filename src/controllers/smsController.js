@@ -168,7 +168,6 @@
 //   getOtp,
 // };
 
-
 const axios = require("axios");
 const User = require("../models/User"); // Adjust path if needed
 
@@ -181,10 +180,9 @@ const USD_TO_NGN = 1000;
 ===================================================== */
 const getServers = async (req, res) => {
   try {
-    const response = await axios.get(
-      `${SMSPOOL_BASE_URL}/country/retrieve_all`,
-      { params: { key: API_KEY } }
-    );
+    const response = await axios.get(`${SMSPOOL_BASE_URL}/country/retrieve_all`, {
+      params: { key: API_KEY },
+    });
 
     const countries = response.data.map((c) => ({
       ID: c.ID,
@@ -204,15 +202,13 @@ const getServers = async (req, res) => {
 ===================================================== */
 const getServices = async (req, res) => {
   try {
-    const servicesRes = await axios.get(
-      `${SMSPOOL_BASE_URL}/service/retrieve_all`,
-      { params: { key: API_KEY } }
-    );
+    const servicesRes = await axios.get(`${SMSPOOL_BASE_URL}/service/retrieve_all`, {
+      params: { key: API_KEY },
+    });
 
-    const pricingRes = await axios.get(
-      `${SMSPOOL_BASE_URL}/request/pricing`,
-      { params: { key: API_KEY } }
-    );
+    const pricingRes = await axios.get(`${SMSPOOL_BASE_URL}/request/pricing`, {
+      params: { key: API_KEY },
+    });
 
     const servicesList = servicesRes.data;
     const pricingList = pricingRes.data;
@@ -228,7 +224,7 @@ const getServices = async (req, res) => {
       return {
         ID: s.ID,
         name: s.name,
-        price: priceInNaira, // converted to NGN
+        price: priceInNaira,
         pool: priceInfo?.pool || "default",
         countryID: priceInfo?.country || null,
         countryShort: priceInfo?.short_name || null,
@@ -243,10 +239,10 @@ const getServices = async (req, res) => {
 };
 
 /* =====================================================
-   BUY NUMBER WITH WALLET CHECK AND AUTO-REFUND
+   BUY NUMBER WITH WALLET SAFE DEDUCTION
 ===================================================== */
 const buyNumber = async (req, res) => {
-  const { country, service, pool, max_price } = req.body;
+  const { country, service } = req.body;
 
   if (!country || !service) {
     return res.status(400).json({
@@ -277,11 +273,7 @@ const buyNumber = async (req, res) => {
       });
     }
 
-    // 3. Deduct balance first
-    user.walletBalanceNGN -= priceNGN;
-    await user.save();
-
-    // 4. Attempt purchase
+    // 3. Attempt purchase first
     const response = await axios.post(
       `${SMSPOOL_BASE_URL}/purchase/sms`,
       null,
@@ -295,14 +287,16 @@ const buyNumber = async (req, res) => {
       }
     );
 
-    // 5. If purchase failed, refund
+    // 4. Check if API returned failure
     if (response.data.success === 0) {
-      user.walletBalanceNGN += priceNGN;
-      await user.save();
       return res.status(500).json(response.data);
     }
 
-    // 6. Success
+    // 5. Deduct wallet only after success
+    user.walletBalanceNGN -= priceNGN;
+    await user.save();
+
+    // 6. Success response
     res.json({
       success: 1,
       message: "Number purchased successfully",
@@ -311,18 +305,6 @@ const buyNumber = async (req, res) => {
     });
   } catch (err) {
     console.error("Failed to buy number:", err.response?.data || err.message);
-
-    // Refund on unexpected error
-    try {
-      const user = await User.findById(req.user.id);
-      if (user && priceNGN) {
-        user.walletBalanceNGN += priceNGN;
-        await user.save();
-      }
-    } catch (refundErr) {
-      console.error("Refund failed:", refundErr.message);
-    }
-
     res.status(500).json(
       err.response?.data || { success: 0, message: "Purchase failed" }
     );
