@@ -170,7 +170,7 @@
 
 
 const axios = require("axios");
-const User = require("./models/User"); // Adjust path if needed
+const User = require("../models/User"); // Adjust path if needed
 
 const SMSPOOL_BASE_URL = "https://api.smspool.net";
 const API_KEY = process.env.SMS_POOL_API_KEY;
