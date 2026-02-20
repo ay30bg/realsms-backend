@@ -285,7 +285,7 @@ const Order = require("../models/Order");
 const SMSPOOL_BASE_URL = "https://api.smspool.net";
 const API_KEY = process.env.SMS_POOL_API_KEY;
 
-const USD_TO_NGN = 1000;
+const USD_TO_NGN = 1500;
 
 // 100% markup
 const MARKUP_PERCENT = 100;
@@ -472,6 +472,73 @@ const buyNumber = async (req, res) => {
 /* =====================================================
    CHECK OTP
 ===================================================== */
+// const getOtp = async (req, res) => {
+//   const { orderid } = req.body;
+
+//   if (!orderid) {
+//     return res.status(400).json({
+//       success: 0,
+//       message: "Order ID is required",
+//     });
+//   }
+
+//   try {
+//     const response = await axios.post(
+//       `${SMSPOOL_BASE_URL}/sms/check`,
+//       null,
+//       {
+//         params: { key: API_KEY, orderid },
+//       }
+//     );
+
+//     const status = Number(response.data.status);
+//     const sms = response.data.sms;
+
+//     const order = await Order.findOne({ orderid });
+//     if (!order) {
+//       return res.status(404).json({
+//         success: 0,
+//         message: "Order not found",
+//       });
+//     }
+
+//     if (status === 3 && sms) {
+//       const otp = sms.match(/\d{4,6}/)?.[0];
+
+//       order.otp = otp;
+//       order.status = "received";
+//       await order.save();
+
+//       return res.json({
+//         success: 1,
+//         otp,
+//         message: "OTP received",
+//       });
+//     }
+
+//     if (status === 4) {
+//       order.status = "cancelled";
+//       await order.save();
+
+//       return res.json({
+//         success: 0,
+//         message: "Order expired or cancelled",
+//       });
+//     }
+
+//     return res.json({
+//       success: 0,
+//       message: "OTP not yet available",
+//     });
+//   } catch (err) {
+//     console.error("OTP Error:", err.response?.data || err.message);
+//     res.status(500).json({
+//       success: 0,
+//       message: "Failed to check OTP",
+//     });
+//   }
+// };
+
 const getOtp = async (req, res) => {
   const { orderid } = req.body;
 
@@ -483,17 +550,7 @@ const getOtp = async (req, res) => {
   }
 
   try {
-    const response = await axios.post(
-      `${SMSPOOL_BASE_URL}/sms/check`,
-      null,
-      {
-        params: { key: API_KEY, orderid },
-      }
-    );
-
-    const status = Number(response.data.status);
-    const sms = response.data.sms;
-
+    // Fetch the order
     const order = await Order.findOne({ orderid });
     if (!order) {
       return res.status(404).json({
@@ -502,37 +559,79 @@ const getOtp = async (req, res) => {
       });
     }
 
-    if (status === 3 && sms) {
-      const otp = sms.match(/\d{4,6}/)?.[0];
+    // Handle refunded orders
+    if (order.status === "refunded") {
+      return res.json({
+        success: 0,
+        message: "Order has been refunded",
+        otp: order.otp || null,
+      });
+    }
 
+    // Handle already received OTP
+    if (order.status === "received" && order.otp) {
+      return res.json({
+        success: 1,
+        message: "OTP already received",
+        otp: order.otp,
+      });
+    }
+
+    // Handle cancelled orders
+    if (order.status === "cancelled") {
+      return res.json({
+        success: 0,
+        message: "Order was cancelled",
+        otp: order.otp || null,
+      });
+    }
+
+    // Check provider for latest OTP
+    const response = await axios.post(
+      `${SMSPOOL_BASE_URL}/sms/check`,
+      null,
+      { params: { key: API_KEY, orderid } }
+    );
+
+    const status = Number(response.data.status);
+    const sms = response.data.sms;
+
+    if (status === 3 && sms) {
+      // OTP received
+      const otp = sms.match(/\d{4,6}/)?.[0];
       order.otp = otp;
       order.status = "received";
       await order.save();
 
       return res.json({
         success: 1,
-        otp,
         message: "OTP received",
+        otp,
       });
     }
 
     if (status === 4) {
+      // Provider cancelled/expired
       order.status = "cancelled";
       await order.save();
 
       return res.json({
         success: 0,
         message: "Order expired or cancelled",
+        otp: order.otp || null,
       });
     }
 
+    // Still waiting
     return res.json({
       success: 0,
       message: "OTP not yet available",
+      otp: order.otp || null,
     });
+
   } catch (err) {
     console.error("OTP Error:", err.response?.data || err.message);
-    res.status(500).json({
+    return res.status(500).json({
       success: 0,
       message: "Failed to check OTP",
     });
