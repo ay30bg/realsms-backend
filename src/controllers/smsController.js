@@ -1,3 +1,283 @@
+// // const axios = require("axios");
+// // const User = require("../models/User");
+// // const Order = require("../models/Order");
+
+// // const SMSPOOL_BASE_URL = "https://api.smspool.net";
+// // const API_KEY = process.env.SMS_POOL_API_KEY;
+
+// // const USD_TO_NGN = 1000;
+
+// // // 🔥 100% Markup
+// // const MARKUP_PERCENT = 100;
+// // const MARKUP_MULTIPLIER = 1 + MARKUP_PERCENT / 100;
+
+// // /* =====================================================
+// //    GET ALL COUNTRIES
+// // ===================================================== */
+// // const getServers = async (req, res) => {
+// //   try {
+// //     const response = await axios.get(
+// //       `${SMSPOOL_BASE_URL}/country/retrieve_all`,
+// //       { params: { key: API_KEY } }
+// //     );
+
+// //     const countries = response.data.map((c) => ({
+// //       ID: String(c.ID),
+// //       name: c.name,
+// //       short_name: c.short_name,
+// //     }));
+
+// //     res.json(countries);
+// //   } catch (err) {
+// //     console.error("Country Error:", err.response?.data || err.message);
+// //     res.status(500).json([]);
+// //   }
+// // };
+
+// // /* =====================================================
+// //    GET SERVICES WITH MARKUP PRICING
+// // ===================================================== */
+// // const getServices = async (req, res) => {
+// //   try {
+// //     const [servicesRes, pricingRes] = await Promise.all([
+// //       axios.get(`${SMSPOOL_BASE_URL}/service/retrieve_all`, {
+// //         params: { key: API_KEY },
+// //       }),
+// //       axios.get(`${SMSPOOL_BASE_URL}/request/pricing`, {
+// //         params: { key: API_KEY },
+// //       }),
+// //     ]);
+
+// //     const services = servicesRes.data.map((service) => {
+// //       const countryPricing = pricingRes.data
+// //         .filter((p) => String(p.service) === String(service.ID))
+// //         .map((p) => {
+// //           const basePriceNGN = Number(p.price) * USD_TO_NGN;
+// //           const sellingPriceNGN = basePriceNGN * MARKUP_MULTIPLIER;
+
+// //           return {
+// //             countryID: String(p.country),
+// //             pool: p.pool,
+// //             basePriceNGN,
+// //             priceNGN: sellingPriceNGN,
+// //           };
+// //         });
+
+// //       return {
+// //         ID: String(service.ID),
+// //         name: service.name,
+// //         pricing: countryPricing,
+// //       };
+// //     });
+
+// //     res.json(services);
+// //   } catch (err) {
+// //     console.error("Service Error:", err.response?.data || err.message);
+// //     res.status(500).json([]);
+// //   }
+// // };
+
+// // /* =====================================================
+// //    BUY NUMBER (SAFE PROFIT VERSION)
+// // ===================================================== */
+// // const buyNumber = async (req, res) => {
+// //   const { country, service } = req.body;
+
+// //   if (!country || !service) {
+// //     return res.status(400).json({
+// //       success: 0,
+// //       message: "Country and service are required",
+// //     });
+// //   }
+
+// //   try {
+// //     const user = await User.findById(req.user.id);
+
+// //     if (!user) {
+// //       return res.status(404).json({
+// //         success: 0,
+// //         message: "User not found",
+// //       });
+// //     }
+
+// //     // 🔥 Always fetch latest pricing (protects profit)
+// //     const pricingRes = await axios.get(
+// //       `${SMSPOOL_BASE_URL}/request/pricing`,
+// //       { params: { key: API_KEY } }
+// //     );
+
+// //     const priceInfo = pricingRes.data.find(
+// //       (p) =>
+// //         String(p.service) === String(service) &&
+// //         String(p.country) === String(country)
+// //     );
+
+// //     if (!priceInfo) {
+// //       return res.status(400).json({
+// //         success: 0,
+// //         message: "Service not available for selected country",
+// //       });
+// //     }
+
+// //     // Base price (what SMSPool will deduct from YOU)
+// //     const basePriceNGN = Number(priceInfo.price) * USD_TO_NGN;
+
+// //     // Selling price (what YOU charge user)
+// //     const sellingPriceNGN = basePriceNGN * MARKUP_MULTIPLIER;
+
+// //     // Check user balance
+// //     if (user.walletBalanceNGN < sellingPriceNGN) {
+// //       return res.status(400).json({
+// //         success: 0,
+// //         message: "Insufficient balance",
+// //       });
+// //     }
+
+// //     // 🔥 Purchase from SMSPool
+// //     const purchaseRes = await axios.post(
+// //       `${SMSPOOL_BASE_URL}/purchase/sms`,
+// //       null,
+// //       {
+// //         params: {
+// //           key: API_KEY,
+// //           country,
+// //           service,
+// //           quantity: 1,
+// //         },
+// //       }
+// //     );
+
+// //     if (!purchaseRes.data || purchaseRes.data.success === 0) {
+// //       return res.status(500).json({
+// //         success: 0,
+// //         message: purchaseRes.data?.message || "Purchase failed",
+// //       });
+// //     }
+
+// //     const { number, orderid } = purchaseRes.data;
+
+// //     // Deduct selling price from user
+// //     user.walletBalanceNGN -= sellingPriceNGN;
+// //     await user.save();
+
+// //     // Save order
+// //     const order = new Order({
+// //       user: user._id,
+// //       service: String(service),
+// //       country: String(country),
+// //       orderid,
+// //       number,
+// //       baseCost: basePriceNGN,       // What SMSPool charged you
+// //       priceCharged: sellingPriceNGN, // What user paid
+// //       profit: sellingPriceNGN - basePriceNGN,
+// //       status: "waiting",
+// //     });
+
+// //     await order.save();
+
+// //     res.json({
+// //       success: 1,
+// //       message: "Number purchased successfully",
+// //       data: {
+// //         number,
+// //         orderid,
+// //         pricePaid: sellingPriceNGN,
+// //         profit: sellingPriceNGN - basePriceNGN,
+// //       },
+// //       remainingBalance: user.walletBalanceNGN,
+// //     });
+// //   } catch (err) {
+// //     console.error("Buy Error:", err.response?.data || err.message);
+// //     res.status(500).json({
+// //       success: 0,
+// //       message: "Purchase failed",
+// //     });
+// //   }
+// // };
+
+// // /* =====================================================
+// //    CHECK OTP
+// // ===================================================== */
+// // const getOtp = async (req, res) => {
+// //   const { orderid } = req.body;
+
+// //   if (!orderid) {
+// //     return res.status(400).json({
+// //       success: 0,
+// //       message: "Order ID is required",
+// //     });
+// //   }
+
+// //   try {
+// //     const response = await axios.post(
+// //       `${SMSPOOL_BASE_URL}/sms/check`,
+// //       null,
+// //       {
+// //         params: {
+// //           key: API_KEY,
+// //           orderid,
+// //         },
+// //       }
+// //     );
+
+// //     const status = Number(response.data.status);
+// //     const sms = response.data.sms;
+
+// //     const order = await Order.findOne({ orderid });
+
+// //     if (!order) {
+// //       return res.status(404).json({
+// //         success: 0,
+// //         message: "Order not found",
+// //       });
+// //     }
+
+// //     if (status === 3 && sms) {
+// //       const otp = sms.match(/\d{4,6}/)?.[0];
+
+// //       order.otp = otp;
+// //       order.status = "received";
+// //       await order.save();
+
+// //       return res.json({
+// //         success: 1,
+// //         otp,
+// //         message: "OTP received",
+// //       });
+// //     }
+
+// //     if (status === 4) {
+// //       order.status = "cancelled";
+// //       await order.save();
+
+// //       return res.json({
+// //         success: 0,
+// //         otp: null,
+// //         message: "Order cancelled or expired",
+// //       });
+// //     }
+
+// //     return res.json({
+// //       success: 0,
+// //       otp: null,
+// //       message: "OTP not yet available",
+// //     });
+// //   } catch (err) {
+// //     console.error("OTP Error:", err.response?.data || err.message);
+// //     res.status(500).json({
+// //       success: 0,
+// //       message: "Failed to check OTP",
+// //     });
+// //   }
+// // };
+
+// // module.exports = {
+// //   getServers,
+// //   getServices,
+// //   buyNumber,
+// //   getOtp,
+// // };
+
 // const axios = require("axios");
 // const User = require("../models/User");
 // const Order = require("../models/Order");
@@ -7,7 +287,7 @@
 
 // const USD_TO_NGN = 1000;
 
-// // 🔥 100% Markup
+// // 100% markup
 // const MARKUP_PERCENT = 100;
 // const MARKUP_MULTIPLIER = 1 + MARKUP_PERCENT / 100;
 
@@ -35,7 +315,7 @@
 // };
 
 // /* =====================================================
-//    GET SERVICES WITH MARKUP PRICING
+//    GET SERVICES WITH MARKUP
 // ===================================================== */
 // const getServices = async (req, res) => {
 //   try {
@@ -78,7 +358,7 @@
 // };
 
 // /* =====================================================
-//    BUY NUMBER (SAFE PROFIT VERSION)
+//    BUY NUMBER
 // ===================================================== */
 // const buyNumber = async (req, res) => {
 //   const { country, service } = req.body;
@@ -92,7 +372,6 @@
 
 //   try {
 //     const user = await User.findById(req.user.id);
-
 //     if (!user) {
 //       return res.status(404).json({
 //         success: 0,
@@ -100,7 +379,7 @@
 //       });
 //     }
 
-//     // 🔥 Always fetch latest pricing (protects profit)
+//     // Always fetch latest pricing
 //     const pricingRes = await axios.get(
 //       `${SMSPOOL_BASE_URL}/request/pricing`,
 //       { params: { key: API_KEY } }
@@ -119,13 +398,9 @@
 //       });
 //     }
 
-//     // Base price (what SMSPool will deduct from YOU)
 //     const basePriceNGN = Number(priceInfo.price) * USD_TO_NGN;
-
-//     // Selling price (what YOU charge user)
 //     const sellingPriceNGN = basePriceNGN * MARKUP_MULTIPLIER;
 
-//     // Check user balance
 //     if (user.walletBalanceNGN < sellingPriceNGN) {
 //       return res.status(400).json({
 //         success: 0,
@@ -133,7 +408,7 @@
 //       });
 //     }
 
-//     // 🔥 Purchase from SMSPool
+//     // Purchase
 //     const purchaseRes = await axios.post(
 //       `${SMSPOOL_BASE_URL}/purchase/sms`,
 //       null,
@@ -156,7 +431,7 @@
 
 //     const { number, orderid } = purchaseRes.data;
 
-//     // Deduct selling price from user
+//     // Deduct from user
 //     user.walletBalanceNGN -= sellingPriceNGN;
 //     await user.save();
 
@@ -167,8 +442,8 @@
 //       country: String(country),
 //       orderid,
 //       number,
-//       baseCost: basePriceNGN,       // What SMSPool charged you
-//       priceCharged: sellingPriceNGN, // What user paid
+//       baseCost: basePriceNGN,
+//       priceCharged: sellingPriceNGN,
 //       profit: sellingPriceNGN - basePriceNGN,
 //       status: "waiting",
 //     });
@@ -182,7 +457,6 @@
 //         number,
 //         orderid,
 //         pricePaid: sellingPriceNGN,
-//         profit: sellingPriceNGN - basePriceNGN,
 //       },
 //       remainingBalance: user.walletBalanceNGN,
 //     });
@@ -213,10 +487,7 @@
 //       `${SMSPOOL_BASE_URL}/sms/check`,
 //       null,
 //       {
-//         params: {
-//           key: API_KEY,
-//           orderid,
-//         },
+//         params: { key: API_KEY, orderid },
 //       }
 //     );
 
@@ -224,7 +495,6 @@
 //     const sms = response.data.sms;
 
 //     const order = await Order.findOne({ orderid });
-
 //     if (!order) {
 //       return res.status(404).json({
 //         success: 0,
@@ -252,14 +522,12 @@
 
 //       return res.json({
 //         success: 0,
-//         otp: null,
-//         message: "Order cancelled or expired",
+//         message: "Order expired or cancelled",
 //       });
 //     }
 
 //     return res.json({
 //       success: 0,
-//       otp: null,
 //       message: "OTP not yet available",
 //     });
 //   } catch (err) {
@@ -271,11 +539,33 @@
 //   }
 // };
 
+// /* =====================================================
+//    GET USER ORDERS
+// ===================================================== */
+// const getUserOrders = async (req, res) => {
+//   try {
+//     const orders = await Order.find({ user: req.user.id })
+//       .sort({ createdAt: -1 });
+
+//     res.json({
+//       success: 1,
+//       data: orders,
+//     });
+//   } catch (err) {
+//     console.error("Fetch Orders Error:", err.message);
+//     res.status(500).json({
+//       success: 0,
+//       message: "Failed to fetch orders",
+//     });
+//   }
+// };
+
 // module.exports = {
 //   getServers,
 //   getServices,
 //   buyNumber,
 //   getOtp,
+//   getUserOrders,
 // };
 
 const axios = require("axios");
@@ -286,76 +576,8 @@ const SMSPOOL_BASE_URL = "https://api.smspool.net";
 const API_KEY = process.env.SMS_POOL_API_KEY;
 
 const USD_TO_NGN = 1000;
-
-// 100% markup
 const MARKUP_PERCENT = 100;
 const MARKUP_MULTIPLIER = 1 + MARKUP_PERCENT / 100;
-
-/* =====================================================
-   GET ALL COUNTRIES
-===================================================== */
-const getServers = async (req, res) => {
-  try {
-    const response = await axios.get(
-      `${SMSPOOL_BASE_URL}/country/retrieve_all`,
-      { params: { key: API_KEY } }
-    );
-
-    const countries = response.data.map((c) => ({
-      ID: String(c.ID),
-      name: c.name,
-      short_name: c.short_name,
-    }));
-
-    res.json(countries);
-  } catch (err) {
-    console.error("Country Error:", err.response?.data || err.message);
-    res.status(500).json([]);
-  }
-};
-
-/* =====================================================
-   GET SERVICES WITH MARKUP
-===================================================== */
-const getServices = async (req, res) => {
-  try {
-    const [servicesRes, pricingRes] = await Promise.all([
-      axios.get(`${SMSPOOL_BASE_URL}/service/retrieve_all`, {
-        params: { key: API_KEY },
-      }),
-      axios.get(`${SMSPOOL_BASE_URL}/request/pricing`, {
-        params: { key: API_KEY },
-      }),
-    ]);
-
-    const services = servicesRes.data.map((service) => {
-      const countryPricing = pricingRes.data
-        .filter((p) => String(p.service) === String(service.ID))
-        .map((p) => {
-          const basePriceNGN = Number(p.price) * USD_TO_NGN;
-          const sellingPriceNGN = basePriceNGN * MARKUP_MULTIPLIER;
-
-          return {
-            countryID: String(p.country),
-            pool: p.pool,
-            basePriceNGN,
-            priceNGN: sellingPriceNGN,
-          };
-        });
-
-      return {
-        ID: String(service.ID),
-        name: service.name,
-        pricing: countryPricing,
-      };
-    });
-
-    res.json(services);
-  } catch (err) {
-    console.error("Service Error:", err.response?.data || err.message);
-    res.status(500).json([]);
-  }
-};
 
 /* =====================================================
    BUY NUMBER
@@ -379,7 +601,6 @@ const buyNumber = async (req, res) => {
       });
     }
 
-    // Always fetch latest pricing
     const pricingRes = await axios.get(
       `${SMSPOOL_BASE_URL}/request/pricing`,
       { params: { key: API_KEY } }
@@ -394,7 +615,7 @@ const buyNumber = async (req, res) => {
     if (!priceInfo) {
       return res.status(400).json({
         success: 0,
-        message: "Service not available for selected country",
+        message: "Service not available",
       });
     }
 
@@ -408,7 +629,6 @@ const buyNumber = async (req, res) => {
       });
     }
 
-    // Purchase
     const purchaseRes = await axios.post(
       `${SMSPOOL_BASE_URL}/purchase/sms`,
       null,
@@ -431,11 +651,10 @@ const buyNumber = async (req, res) => {
 
     const { number, orderid } = purchaseRes.data;
 
-    // Deduct from user
+    // Deduct balance
     user.walletBalanceNGN -= sellingPriceNGN;
     await user.save();
 
-    // Save order
     const order = new Order({
       user: user._id,
       service: String(service),
@@ -446,20 +665,18 @@ const buyNumber = async (req, res) => {
       priceCharged: sellingPriceNGN,
       profit: sellingPriceNGN - basePriceNGN,
       status: "waiting",
+      refunded: false,
     });
 
     await order.save();
 
     res.json({
       success: 1,
-      message: "Number purchased successfully",
-      data: {
-        number,
-        orderid,
-        pricePaid: sellingPriceNGN,
-      },
+      message: "Number purchased",
+      data: { number, orderid },
       remainingBalance: user.walletBalanceNGN,
     });
+
   } catch (err) {
     console.error("Buy Error:", err.response?.data || err.message);
     res.status(500).json({
@@ -470,19 +687,31 @@ const buyNumber = async (req, res) => {
 };
 
 /* =====================================================
-   CHECK OTP
+   CHECK OTP (NO REFUND HERE ANYMORE)
 ===================================================== */
 const getOtp = async (req, res) => {
   const { orderid } = req.body;
 
-  if (!orderid) {
-    return res.status(400).json({
-      success: 0,
-      message: "Order ID is required",
-    });
-  }
-
   try {
+    const order = await Order.findOne({
+      orderid,
+      user: req.user.id,
+    });
+
+    if (!order) {
+      return res.status(404).json({
+        success: 0,
+        message: "Order not found",
+      });
+    }
+
+    if (order.status === "refunded") {
+      return res.json({
+        success: 0,
+        message: "Order already refunded",
+      });
+    }
+
     const response = await axios.post(
       `${SMSPOOL_BASE_URL}/sms/check`,
       null,
@@ -493,14 +722,6 @@ const getOtp = async (req, res) => {
 
     const status = Number(response.data.status);
     const sms = response.data.sms;
-
-    const order = await Order.findOne({ orderid });
-    if (!order) {
-      return res.status(404).json({
-        success: 0,
-        message: "Order not found",
-      });
-    }
 
     if (status === 3 && sms) {
       const otp = sms.match(/\d{4,6}/)?.[0];
@@ -516,25 +737,88 @@ const getOtp = async (req, res) => {
       });
     }
 
-    if (status === 4) {
-      order.status = "cancelled";
-      await order.save();
-
-      return res.json({
-        success: 0,
-        message: "Order expired or cancelled",
-      });
-    }
-
     return res.json({
       success: 0,
       message: "OTP not yet available",
     });
+
   } catch (err) {
     console.error("OTP Error:", err.response?.data || err.message);
     res.status(500).json({
       success: 0,
       message: "Failed to check OTP",
+    });
+  }
+};
+
+/* =====================================================
+   MANUAL REFUND / CANCEL
+===================================================== */
+const cancelOrder = async (req, res) => {
+  const { orderid } = req.body;
+
+  try {
+    const order = await Order.findOne({
+      orderid,
+      user: req.user.id,
+    });
+
+    if (!order) {
+      return res.status(404).json({
+        success: 0,
+        message: "Order not found",
+      });
+    }
+
+    if (order.status !== "waiting") {
+      return res.status(400).json({
+        success: 0,
+        message: "Order cannot be refunded",
+      });
+    }
+
+    if (order.refunded) {
+      return res.status(400).json({
+        success: 0,
+        message: "Already refunded",
+      });
+    }
+
+    // Cancel on provider
+    await axios.post(
+      `${SMSPOOL_BASE_URL}/sms/cancel`,
+      null,
+      {
+        params: {
+          key: API_KEY,
+          orderid,
+        },
+      }
+    );
+
+    const user = await User.findById(order.user);
+
+    // Refund full charged price
+    user.walletBalanceNGN += order.priceCharged;
+    await user.save();
+
+    order.status = "refunded";
+    order.refunded = true;
+    order.profit = 0; // reset profit
+    await order.save();
+
+    res.json({
+      success: 1,
+      message: "Order refunded successfully",
+      refundedAmount: order.priceCharged,
+      newBalance: user.walletBalanceNGN,
+    });
+
+  } catch (err) {
+    console.error("Refund Error:", err.response?.data || err.message);
+    res.status(500).json({
+      success: 0,
+      message: "Refund failed",
     });
   }
 };
@@ -552,7 +836,6 @@ const getUserOrders = async (req, res) => {
       data: orders,
     });
   } catch (err) {
-    console.error("Fetch Orders Error:", err.message);
     res.status(500).json({
       success: 0,
       message: "Failed to fetch orders",
@@ -561,9 +844,8 @@ const getUserOrders = async (req, res) => {
 };
 
 module.exports = {
-  getServers,
-  getServices,
   buyNumber,
   getOtp,
+  cancelOrder,
   getUserOrders,
 };
