@@ -5,6 +5,7 @@ const {
   getServices,
   buyNumber,
   getOtp,
+  getUserOrders,
 } = require("../controllers/smsController");
 const { protect } = require("../middleware/authMiddleware");
 
@@ -21,6 +22,10 @@ router.post("/buy", protect, buyNumber);
 
 // Get OTP for a purchased number (POST with body)
 router.post("/otp", protect, getOtp);
+
+// Get orders for a user (POST with body)
+router.get("/orders", protect, getUserOrders);
+
 
 module.exports = router;
 
