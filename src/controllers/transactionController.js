@@ -35,7 +35,7 @@ const Transaction = require("../models/Transaction");
 
 exports.getUserTransactionStats = async (req, res) => {
   try {
-    const userId = req.user._id; // 🔥 always correct user
+    const userId = req.user._id; // from protect middleware
 
     const result = await Transaction.aggregate([
       {
@@ -53,11 +53,20 @@ exports.getUserTransactionStats = async (req, res) => {
       },
     ]);
 
-    const stats = result[0] || { totalAmount: 0, totalTransactions: 0 };
+    const stats = result[0] || {
+      totalAmount: 0,
+      totalTransactions: 0,
+    };
 
-    res.json(stats);
-  } catch (err) {
-    console.error("Error fetching transaction stats:", err);
-    res.status(500).json({ totalAmount: 0, totalTransactions: 0 });
+    res.status(200).json({
+      totalAmount: stats.totalAmount,
+      totalTransactions: stats.totalTransactions,
+    });
+  } catch (error) {
+    console.error("Transaction stats error:", error);
+    res.status(500).json({
+      totalAmount: 0,
+      totalTransactions: 0,
+    });
   }
 };
