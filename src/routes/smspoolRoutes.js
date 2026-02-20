@@ -5,6 +5,7 @@ const {
   getServices,
   buyNumber,
   getOtp,
+  cancelOrder,
   getUserOrders,
 } = require("../controllers/smsController");
 const { protect } = require("../middleware/authMiddleware");
@@ -25,6 +26,8 @@ router.post("/otp", protect, getOtp);
 
 // Get orders for a user (POST with body)
 router.get("/orders", protect, getUserOrders);
+
+router.post("/cancel", protect, cancelOrder);
 
 
 module.exports = router;
