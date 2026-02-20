@@ -1,31 +1,3 @@
-// // const mongoose = require("mongoose");
-
-// // const orderSchema = new mongoose.Schema(
-// //   {
-// //     user: {
-// //       type: mongoose.Schema.Types.ObjectId,
-// //       ref: "User",
-// //       required: true,
-// //     },
-// //     service: String,
-// //     country: String,
-// //     orderid: String,
-// //     number: String,
-// //     baseCost: Number,
-// //     priceCharged: Number,
-// //     profit: Number,
-// //     status: {
-// //       type: String,
-// //       enum: ["waiting", "received", "cancelled"],
-// //       default: "waiting",
-// //     },
-// //     otp: String,
-// //   },
-// //   { timestamps: true }
-// // );
-
-// // module.exports = mongoose.model("Order", orderSchema);
-
 // const mongoose = require("mongoose");
 
 // const orderSchema = new mongoose.Schema(
@@ -35,61 +7,19 @@
 //       ref: "User",
 //       required: true,
 //     },
-
-//     service: {
-//       type: String,
-//       required: true,
-//     },
-
-//     country: {
-//       type: String,
-//       required: true,
-//     },
-
-//     orderid: {
-//       type: String,
-//       required: true,
-//       unique: true,
-//     },
-
-//     number: {
-//       type: String,
-//       required: true,
-//     },
-
-//     baseCost: {
-//       type: Number,
-//       required: true,
-//     },
-
-//     priceCharged: {
-//       type: Number,
-//       required: true,
-//     },
-
-//     profit: {
-//       type: Number,
-//       default: 0,
-//     },
-
+//     service: String,
+//     country: String,
+//     orderid: String,
+//     number: String,
+//     baseCost: Number,
+//     priceCharged: Number,
+//     profit: Number,
 //     status: {
 //       type: String,
-//       enum: ["waiting", "received", "refunded"],
+//       enum: ["waiting", "received", "cancelled"],
 //       default: "waiting",
 //     },
-
-//     otp: {
-//       type: String,
-//     },
-
-//     refunded: {
-//       type: Boolean,
-//       default: false,
-//     },
-
-//     refundedAt: {
-//       type: Date,
-//     },
+//     otp: String,
 //   },
 //   { timestamps: true }
 // );
@@ -97,13 +27,6 @@
 // module.exports = mongoose.model("Order", orderSchema);
 
 const mongoose = require("mongoose");
-const countries = require("i18n-iso-countries");
-
-// Register English locale for country names
-countries.registerLocale(require("i18n-iso-countries/langs/en.json"));
-
-// Get all valid ISO alpha-2 country codes
-const validCountryCodes = Object.keys(countries.getAlpha2Codes());
 
 const orderSchema = new mongoose.Schema(
   {
@@ -121,8 +44,6 @@ const orderSchema = new mongoose.Schema(
     country: {
       type: String,
       required: true,
-      uppercase: true,            // ensures stored codes are uppercase
-      enum: validCountryCodes,    // only valid ISO codes allowed
     },
 
     orderid: {
@@ -174,3 +95,4 @@ const orderSchema = new mongoose.Schema(
 );
 
 module.exports = mongoose.model("Order", orderSchema);
+
