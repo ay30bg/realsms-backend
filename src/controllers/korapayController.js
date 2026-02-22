@@ -16,24 +16,24 @@ exports.initializePayment = async (req, res) => {
       return res.status(400).json({ message: "Invalid amount" });
     }
 
-    // Convert amount to kobo
-    const amountInKobo = amount * 100;
+    // Convert amount to kobo (smallest unit)
+    const amountInKobo = Number(amount) * 100;
 
-    // Unique reference
+    // Generate unique reference
     const reference = `rsms-${Date.now()}-${Math.floor(Math.random() * 1000000)}`;
 
-    // Create charge via Korapay API
+    // Korapay API request
     const response = await axios.post(
-      "https://api.korapay.com/merchant/charges",
+      "https://api.korapay.com/merchant/api/v1/charges/initialize",
       {
         amount: amountInKobo,
         currency: "NGN",
         reference,
-        customer_email: req.user.email,
-        customer_name: req.user.name || req.user.email,
-        metadata: {
-          source: "RealSMS Wallet",
+        customer: {
+          email: req.user.email,
+          name: req.user.name || req.user.email,
         },
+        metadata: { source: "RealSMS Wallet" },
         notification_url: `${process.env.BACKEND_URL}/api/korapay/webhook`, // optional webhook
       },
       {
@@ -56,12 +56,12 @@ exports.initializePayment = async (req, res) => {
       status: "PENDING",
     });
 
-    // Return reference to frontend for initialize()
+    // Return reference & checkout URL to frontend
     res.json({
       reference: chargeData.reference,
       amount: chargeData.amount,
       currency: chargeData.currency,
-      checkout_url: chargeData.checkout_url, // optional
+      checkout_url: chargeData.checkout_url,
     });
   } catch (error) {
     console.error(error.response?.data || error.message);
@@ -76,27 +76,20 @@ exports.verifyPayment = async (req, res) => {
   try {
     const { reference } = req.query;
 
-    if (!reference) {
-      return res.redirect(`${FRONTEND_URL}/fund-cancel`);
-    }
+    if (!reference) return res.redirect(`${FRONTEND_URL}/fund-cancel`);
 
     const transaction = await Transaction.findOne({ reference });
-
-    if (!transaction) {
-      return res.redirect(`${FRONTEND_URL}/fund-cancel`);
-    }
+    if (!transaction) return res.redirect(`${FRONTEND_URL}/fund-cancel`);
 
     if (transaction.status === "SUCCESS") {
       return res.redirect(`${FRONTEND_URL}/fund-success`);
     }
 
-    // Verify payment with Korapay API
+    // Verify payment
     const response = await axios.get(
-      `https://api.korapay.com/merchant/charges/${reference}`,
+      `https://api.korapay.com/merchant/api/v1/charges/${reference}`,
       {
-        headers: {
-          Authorization: `Bearer ${KORAPAY_SECRET_KEY}`,
-        },
+        headers: { Authorization: `Bearer ${KORAPAY_SECRET_KEY}` },
       }
     );
 
