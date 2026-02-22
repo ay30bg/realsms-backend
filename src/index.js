@@ -9,6 +9,7 @@ const authRoutes = require('./routes/authRoutes');
 const usdtRoutes = require('./routes/usdtRoutes');
 const walletRoutes = require('./routes/walletRoutes');
 const paystackRoutes = require("./routes/paystackRoutes");
+const korapayRoutes = require("./routes/korapayRoutes");
 const smspoolRoutes = require("./routes/smspoolRoutes");
 const transactionRoutes = require("./routes/transactionsRoutes");
 
@@ -50,6 +51,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/usdt', usdtRoutes); 
 app.use('/api/wallet', walletRoutes);
 app.use("/api/paystack", paystackRoutes); 
+app.use("/api/korapay", korapayRoutes);
 app.use("/api/transactions", transactionRoutes);
 app.use("/api/smspool", smspoolRoutes);
 
@@ -81,6 +83,7 @@ const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
+
 
 
 
