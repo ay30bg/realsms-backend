@@ -7,6 +7,6 @@ const { protect } = require("../middleware/authMiddleware");
 router.post("/init", protect, initializePayment);
 
 // // GET /api/korapay/verify?reference=...
-router.get("/verify", protect, verifyPayment);
+router.get("/verify", verifyPayment);
 
 module.exports = router;
