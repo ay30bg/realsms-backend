@@ -1,57 +1,124 @@
 const axios = require("axios");
+const User = require("../models/User");
+const Transaction = require("../models/Transaction");
 
-// Create a new Korapay charge
-const initKorapayCharge = async (req, res) => {
+const KORAPAY_SECRET_KEY = process.env.KORAPAY_SECRET_KEY;
+const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:3000";
+
+// =============================
+// Initialize Korapay Payment
+// =============================
+exports.initializePayment = async (req, res) => {
   try {
-    const { amount, email, name } = req.body;
+    const { amount } = req.body;
 
-    if (!amount || !email || !name) {
-      return res.status(400).json({ message: "Amount, name and email are required" });
+    if (!amount || amount < 100) {
+      return res.status(400).json({ message: "Invalid amount" });
     }
 
-    // ✅ Convert amount to kobo (if NGN)
-    const amountInKobo = Number(amount) * 100;
+    // Convert amount to kobo
+    const amountInKobo = amount * 100;
 
-    // Create unique reference
+    // Unique reference
     const reference = `rsms-${Date.now()}-${Math.floor(Math.random() * 1000000)}`;
 
-    // Call Korapay API
+    // Create charge via Korapay API
     const response = await axios.post(
       "https://api.korapay.com/merchant/charges",
       {
         amount: amountInKobo,
         currency: "NGN",
         reference,
-        customer_email: email,
-        customer_name: name,
-        // optional: add metadata
+        customer_email: req.user.email,
+        customer_name: req.user.name || req.user.email,
         metadata: {
           source: "RealSMS Wallet",
         },
-        // optional: webhook URL for verification
-        notification_url: process.env.KORAPAY_NOTIFICATION_URL || "",
+        notification_url: `${process.env.BACKEND_URL}/api/korapay/webhook`, // optional webhook
       },
       {
         headers: {
-          Authorization: `Bearer ${process.env.KORAPAY_SECRET_KEY}`,
+          Authorization: `Bearer ${KORAPAY_SECRET_KEY}`,
           "Content-Type": "application/json",
         },
       }
     );
 
-    // Return the reference & charge details to frontend
-    return res.status(200).json({
-      reference: response.data.data.reference,
-      amount: response.data.data.amount,
-      currency: response.data.data.currency,
-      checkout_url: response.data.data.checkout_url,
+    const chargeData = response.data.data;
+
+    // Save transaction as pending
+    await Transaction.create({
+      user: req.user._id,
+      reference: chargeData.reference,
+      amount,
+      currency: "NGN",
+      provider: "KORAPAY",
+      status: "PENDING",
     });
-  } catch (err) {
-    console.error(err.response?.data || err.message);
-    return res
-      .status(err.response?.status || 500)
-      .json({ message: err.response?.data?.message || err.message });
+
+    // Return reference to frontend for initialize()
+    res.json({
+      reference: chargeData.reference,
+      amount: chargeData.amount,
+      currency: chargeData.currency,
+      checkout_url: chargeData.checkout_url, // optional
+    });
+  } catch (error) {
+    console.error(error.response?.data || error.message);
+    res.status(500).json({ message: "Korapay payment initialization failed" });
   }
 };
 
-module.exports = { initKorapayCharge };
+// =============================
+// Verify Korapay Payment
+// =============================
+exports.verifyPayment = async (req, res) => {
+  try {
+    const { reference } = req.query;
+
+    if (!reference) {
+      return res.redirect(`${FRONTEND_URL}/fund-cancel`);
+    }
+
+    const transaction = await Transaction.findOne({ reference });
+
+    if (!transaction) {
+      return res.redirect(`${FRONTEND_URL}/fund-cancel`);
+    }
+
+    if (transaction.status === "SUCCESS") {
+      return res.redirect(`${FRONTEND_URL}/fund-success`);
+    }
+
+    // Verify payment with Korapay API
+    const response = await axios.get(
+      `https://api.korapay.com/merchant/charges/${reference}`,
+      {
+        headers: {
+          Authorization: `Bearer ${KORAPAY_SECRET_KEY}`,
+        },
+      }
+    );
+
+    const paymentData = response.data.data;
+
+    if (paymentData.status !== "success") {
+      transaction.status = "FAILED";
+      await transaction.save();
+      return res.redirect(`${FRONTEND_URL}/fund-cancel`);
+    }
+
+    // Update user wallet
+    const user = await User.findById(transaction.user);
+    user.walletBalanceNGN += transaction.amount;
+    await user.save();
+
+    transaction.status = "SUCCESS";
+    await transaction.save();
+
+    res.redirect(`${FRONTEND_URL}/fund-success`);
+  } catch (error) {
+    console.error(error);
+    res.redirect(`${FRONTEND_URL}/fund-cancel`);
+  }
+};
