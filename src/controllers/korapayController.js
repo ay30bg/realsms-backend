@@ -5,24 +5,28 @@ const Transaction = require("../models/Transaction");
 const KORAPAY_SECRET_KEY = process.env.KORAPAY_SECRET_KEY;
 const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:3000";
 
-// =============================
-// Initialize Korapay Payment
-// =============================
+// Korapay live minimum/maximum
+const MIN_AMOUNT = 200;       // NGN
+const MAX_AMOUNT = 500000;    // NGN
+
 exports.initializePayment = async (req, res) => {
   try {
     const { amount } = req.body;
 
-    if (!amount || amount < 100) {
-      return res.status(400).json({ message: "Invalid amount" });
+    if (!amount || amount < MIN_AMOUNT) {
+      return res.status(400).json({
+        message: `Amount must be at least ₦${MIN_AMOUNT.toLocaleString()}`,
+      });
+    }
+    if (amount > MAX_AMOUNT) {
+      return res.status(400).json({
+        message: `Amount cannot exceed ₦${MAX_AMOUNT.toLocaleString()}`,
+      });
     }
 
-    // Convert amount to kobo (smallest unit)
     const amountInKobo = Number(amount) * 100;
-
-    // Generate unique reference
     const reference = `rsms-${Date.now()}-${Math.floor(Math.random() * 1000000)}`;
 
-    // Korapay API request
     const response = await axios.post(
       "https://api.korapay.com/merchant/api/v1/charges/initialize",
       {
@@ -34,7 +38,7 @@ exports.initializePayment = async (req, res) => {
           name: req.user.name || req.user.email,
         },
         metadata: { source: "RealSMS Wallet" },
-        notification_url: `${process.env.BACKEND_URL}/api/korapay/webhook`, // optional webhook
+        notification_url: `${process.env.BACKEND_URL}/api/korapay/webhook`,
       },
       {
         headers: {
@@ -46,7 +50,6 @@ exports.initializePayment = async (req, res) => {
 
     const chargeData = response.data.data;
 
-    // Save transaction as pending
     await Transaction.create({
       user: req.user._id,
       reference: chargeData.reference,
@@ -56,7 +59,6 @@ exports.initializePayment = async (req, res) => {
       status: "PENDING",
     });
 
-    // Return reference & checkout URL to frontend
     res.json({
       reference: chargeData.reference,
       amount: chargeData.amount,
@@ -66,52 +68,5 @@ exports.initializePayment = async (req, res) => {
   } catch (error) {
     console.error(error.response?.data || error.message);
     res.status(500).json({ message: "Korapay payment initialization failed" });
-  }
-};
-
-// =============================
-// Verify Korapay Payment
-// =============================
-exports.verifyPayment = async (req, res) => {
-  try {
-    const { reference } = req.query;
-
-    if (!reference) return res.redirect(`${FRONTEND_URL}/fund-cancel`);
-
-    const transaction = await Transaction.findOne({ reference });
-    if (!transaction) return res.redirect(`${FRONTEND_URL}/fund-cancel`);
-
-    if (transaction.status === "SUCCESS") {
-      return res.redirect(`${FRONTEND_URL}/fund-success`);
-    }
-
-    // Verify payment
-    const response = await axios.get(
-      `https://api.korapay.com/merchant/api/v1/charges/${reference}`,
-      {
-        headers: { Authorization: `Bearer ${KORAPAY_SECRET_KEY}` },
-      }
-    );
-
-    const paymentData = response.data.data;
-
-    if (paymentData.status !== "success") {
-      transaction.status = "FAILED";
-      await transaction.save();
-      return res.redirect(`${FRONTEND_URL}/fund-cancel`);
-    }
-
-    // Update user wallet
-    const user = await User.findById(transaction.user);
-    user.walletBalanceNGN += transaction.amount;
-    await user.save();
-
-    transaction.status = "SUCCESS";
-    await transaction.save();
-
-    res.redirect(`${FRONTEND_URL}/fund-success`);
-  } catch (error) {
-    console.error(error);
-    res.redirect(`${FRONTEND_URL}/fund-cancel`);
   }
 };
