@@ -91,44 +91,44 @@ exports.initializePayment = async (req, res) => {
 // // =====================================================
 // // 2️⃣ VERIFY PAYMENT (After Redirect)
 // // =====================================================
-// exports.verifyPayment = async (req, res) => {
-//   try {
-//     const { reference } = req.query;
+exports.verifyPayment = async (req, res) => {
+  try {
+    const { reference } = req.query;
 
-//     if (!reference) {
-//       return res.redirect(`${FRONTEND_URL}/fund-cancel`);
-//     }
+    if (!reference) {
+      return res.redirect(`${FRONTEND_URL}/fund-cancel`);
+    }
 
-//     const transaction = await Transaction.findOne({ reference });
+    const transaction = await Transaction.findOne({ reference });
 
-//     if (!transaction) {
-//       return res.redirect(`${FRONTEND_URL}/fund-cancel`);
-//     }
+    if (!transaction) {
+      return res.redirect(`${FRONTEND_URL}/fund-cancel`);
+    }
 
-//     // Prevent double processing
-//     if (transaction.status === "SUCCESS") {
-//       return res.redirect(`${FRONTEND_URL}/fund-success`);
-//     }
+    // Prevent double processing
+    if (transaction.status === "SUCCESS") {
+      return res.redirect(`${FRONTEND_URL}/fund-success`);
+    }
 
-//     // Verify with Korapay
-//     const response = await axios.get(
-//       `https://api.korapay.com/merchant/api/v1/charges/${reference}`,
-//       {
-//         headers: {
-//           Authorization: `Bearer ${KORAPAY_SECRET_KEY}`,
-//         },
-//       }
-//     );
+    // Verify with Korapay
+    const response = await axios.get(
+      `https://api.korapay.com/merchant/api/v1/charges/${reference}`,
+      {
+        headers: {
+          Authorization: `Bearer ${KORAPAY_SECRET_KEY}`,
+        },
+      }
+    );
 
-//     const paymentData = response.data.data;
+    const paymentData = response.data.data;
 
-//     // If not successful
-//     if (!paymentData || paymentData.status !== "success") {
-//       transaction.status = "FAILED";
-//       await transaction.save();
+    // If not successful
+    if (!paymentData || paymentData.status !== "success") {
+      transaction.status = "FAILED";
+      await transaction.save();
 
-//       return res.redirect(`${FRONTEND_URL}/fund-cancel`);
-//     }
+      return res.redirect(`${FRONTEND_URL}/fund-cancel`);
+    }
 
     // =============================
     // CREDIT USER WALLET (ONCE)
