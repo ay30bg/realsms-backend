@@ -40,7 +40,7 @@ const transactionSchema = new mongoose.Schema(
 
     provider: {
       type: String,
-      enum: ["PAYSTACK", "NOWPAYMENTS", "KORAPAY"],
+      enum: ["PAYSTACK", "NOWPAYMENTS", "KORAPAY", "FLUTTERWAVE"],
       required: true,
     },
   },
