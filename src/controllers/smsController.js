@@ -420,7 +420,7 @@ const getServers = async (req, res) => {
 };
 
 /* =====================================================
-   GET SERVICES WITH MARKUP AND STOCK
+   GET SERVICES WITH PRICE AND STOCK
 ===================================================== */
 const getServices = async (req, res) => {
   try {
@@ -436,10 +436,16 @@ const getServices = async (req, res) => {
           const basePriceNGN = Number(p.price) * USD_TO_NGN;
           const sellingPriceNGN = basePriceNGN * MARKUP_MULTIPLIER;
 
+          // Treat missing stock as available
+          const stock =
+            p.stock !== undefined && p.stock !== null
+              ? Number(p.stock)
+              : Infinity;
+
           return {
             countryID: String(p.country),
             pool: p.pool,
-            stock: Number(p.stock) || 0,      // ✅ include stock
+            stock,
             basePriceNGN,
             priceNGN: sellingPriceNGN,
           };
@@ -464,10 +470,7 @@ const getServices = async (req, res) => {
 ===================================================== */
 const buyNumber = async (req, res) => {
   const { country, service } = req.body;
-
-  if (!country || !service) {
-    return res.status(400).json({ success: 0, message: "Country and service are required" });
-  }
+  if (!country || !service) return res.status(400).json({ success: 0, message: "Country and service required" });
 
   try {
     const user = await User.findById(req.user.id);
@@ -479,20 +482,19 @@ const buyNumber = async (req, res) => {
       (p) => String(p.service) === String(service) && String(p.country) === String(country)
     );
 
-    if (!priceInfo) {
-      return res.status(400).json({ success: 0, message: "Service not available for selected country" });
-    }
+    if (!priceInfo) return res.status(400).json({ success: 0, message: "Service not available for selected country" });
 
-    if (Number(priceInfo.stock) <= 0) {
-      return res.status(400).json({ success: 0, message: "Service is out of stock" });
-    }
+    const stock =
+      priceInfo.stock !== undefined && priceInfo.stock !== null
+        ? Number(priceInfo.stock)
+        : Infinity;
+
+    if (stock <= 0) return res.status(400).json({ success: 0, message: "Service is out of stock" });
 
     const basePriceNGN = Number(priceInfo.price) * USD_TO_NGN;
     const sellingPriceNGN = basePriceNGN * MARKUP_MULTIPLIER;
 
-    if (user.walletBalanceNGN < sellingPriceNGN) {
-      return res.status(400).json({ success: 0, message: "Insufficient balance" });
-    }
+    if (user.walletBalanceNGN < sellingPriceNGN) return res.status(400).json({ success: 0, message: "Insufficient balance" });
 
     // Fetch country code
     const countryRes = await axios.get(`${SMSPOOL_BASE_URL}/country/retrieve_all`, { params: { key: API_KEY } });
@@ -506,9 +508,8 @@ const buyNumber = async (req, res) => {
       params: { key: API_KEY, country, service, quantity: 1 },
     });
 
-    if (!purchaseRes.data || purchaseRes.data.success === 0) {
+    if (!purchaseRes.data || purchaseRes.data.success === 0)
       return res.status(500).json({ success: 0, message: purchaseRes.data?.message || "Purchase failed" });
-    }
 
     const { number, orderid } = purchaseRes.data;
 
@@ -528,7 +529,6 @@ const buyNumber = async (req, res) => {
       profit: sellingPriceNGN - basePriceNGN,
       status: "waiting",
     });
-
     await order.save();
 
     res.json({
@@ -548,8 +548,7 @@ const buyNumber = async (req, res) => {
 ===================================================== */
 const getOtp = async (req, res) => {
   const { orderid } = req.body;
-
-  if (!orderid) return res.status(400).json({ success: 0, message: "Order ID is required" });
+  if (!orderid) return res.status(400).json({ success: 0, message: "Order ID required" });
 
   try {
     const response = await axios.post(`${SMSPOOL_BASE_URL}/sms/check`, null, { params: { key: API_KEY, orderid } });
@@ -564,7 +563,6 @@ const getOtp = async (req, res) => {
       order.otp = otp;
       order.status = "received";
       await order.save();
-
       return res.json({ success: 1, otp, message: "OTP received" });
     }
 
@@ -591,7 +589,6 @@ const cancelOrder = async (req, res) => {
   try {
     const order = await Order.findOne({ orderid, user: req.user.id });
     if (!order) return res.status(404).json({ success: 0, message: "Order not found" });
-
     if (order.status !== "waiting") return res.status(400).json({ success: 0, message: "Order cannot be refunded" });
     if (order.refunded) return res.status(400).json({ success: 0, message: "Order already refunded" });
 
