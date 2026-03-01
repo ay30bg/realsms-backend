@@ -1,10 +1,100 @@
+// // index.js
+// const express = require('express');
+// const mongoose = require('mongoose');
+// const cors = require('cors');
+// require('dotenv').config();
+
+// // AUTH ROUTES ONLY
+// const authRoutes = require('./routes/authRoutes');
+// const usdtRoutes = require('./routes/usdtRoutes');
+// const walletRoutes = require('./routes/walletRoutes');
+// const paystackRoutes = require("./routes/paystackRoutes");
+// const korapayRoutes = require("./routes/korapayRoutes");
+// const flutterwaveRoutes = require("./routes/flutterwaveRoutes");
+// const smspoolRoutes = require("./routes/smspoolRoutes");
+// const transactionRoutes = require("./routes/transactionsRoutes");
+
+// const app = express();
+
+// // Trust proxy (safe to keep)
+// app.set('trust proxy', 1);
+
+// // ================= CORS ==================
+// const allowedOrigins = [
+//   'http://localhost:3000',
+//   'https://realsms.vercel.app',
+//   'https://www.realsms.store',
+// ];
+
+// app.use(cors({
+//   origin: (origin, callback) => {
+//     if (!origin || allowedOrigins.includes(origin)) {
+//       callback(null, true);
+//     } else {
+//       callback(new Error('CORS blocked'));
+//     }
+//   },
+//   methods: ['GET', 'POST'],
+//   allowedHeaders: ['Content-Type', 'Authorization'],
+//   credentials: true,
+// }));
+
+// // ============== BODY PARSER ==============
+// app.use(express.json());
+
+// // ============== ROOT =====================
+// app.get('/', (req, res) => {
+//   res.json({ message: 'RealSMS API is running 🚀' });
+// });
+
+// // ================= ROUTES =================
+// app.use('/api/auth', authRoutes);
+// app.use('/api/usdt', usdtRoutes); 
+// app.use('/api/wallet', walletRoutes);
+// app.use("/api/paystack", paystackRoutes); 
+// app.use("/api/korapay", korapayRoutes);
+// app.use("/api/flutterwave", flutterwaveRoutes);
+// app.use("/api/transactions", transactionRoutes);
+// app.use("/api/smspool", smspoolRoutes);
+
+// // ================= MONGODB =================
+// mongoose
+//   .connect(process.env.MONGODB_URI)
+//   .then(() => console.log('✅ MongoDB Connected'))
+//   .catch((err) =>
+//     console.error('❌ MongoDB Connection Error:', err.message)
+//   );
+
+// // Auto-reconnect
+// mongoose.connection.on('disconnected', () => {
+//   console.log('MongoDB disconnected... reconnecting');
+//   mongoose.connect(process.env.MONGODB_URI);
+// });
+
+// // ============== ERROR HANDLER =============
+// app.use((err, req, res, next) => {
+//   console.error('SERVER ERROR:', err.message);
+//   res.status(500).json({
+//     error: 'Something went wrong',
+//     details: err.message,
+//   });
+// });
+
+// // ============== START SERVER ==============
+// const PORT = process.env.PORT || 5000;
+// app.listen(PORT, () => {
+//   console.log(`🚀 Server running on port ${PORT}`);
+// });
+
 // index.js
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
-// AUTH ROUTES ONLY
+// ROUTES
 const authRoutes = require('./routes/authRoutes');
 const usdtRoutes = require('./routes/usdtRoutes');
 const walletRoutes = require('./routes/walletRoutes');
@@ -16,10 +106,59 @@ const transactionRoutes = require("./routes/transactionsRoutes");
 
 const app = express();
 
-// Trust proxy (safe to keep)
+// ================= TRUST PROXY =================
 app.set('trust proxy', 1);
 
-// ================= CORS ==================
+// ================= HELMET SECURITY =================
+app.use(helmet());
+
+// ================= RATE LIMITERS =================
+
+// General API limiter
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 mins
+  max: 200,
+  message: {
+    error: "Too many requests. Please try again later."
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Auth limiter (prevent brute force)
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  message: {
+    error: "Too many authentication attempts. Try again later."
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Payment initialization limiter
+const paymentLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000, // 10 mins
+  max: 30,
+  message: {
+    error: "Too many payment attempts. Please wait before trying again."
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Webhook limiter (light, do NOT block retries)
+const webhookLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000, // 1 min
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Apply general limiter to entire API
+app.use('/api', apiLimiter);
+
+// ================= CORS =================
 const allowedOrigins = [
   'http://localhost:3000',
   'https://realsms.vercel.app',
@@ -39,23 +178,36 @@ app.use(cors({
   credentials: true,
 }));
 
-// ============== BODY PARSER ==============
-app.use(express.json());
+// ================= BODY PARSER =================
+app.use(express.json({ limit: "10mb" }));
 
-// ============== ROOT =====================
+// ================= ROOT =================
 app.get('/', (req, res) => {
   res.json({ message: 'RealSMS API is running 🚀' });
 });
 
 // ================= ROUTES =================
-app.use('/api/auth', authRoutes);
-app.use('/api/usdt', usdtRoutes); 
+
+// AUTH (strict limiter)
+app.use('/api/auth', authLimiter, authRoutes);
+
+// WALLET / USDT / SMS
+app.use('/api/usdt', usdtRoutes);
 app.use('/api/wallet', walletRoutes);
-app.use("/api/paystack", paystackRoutes); 
-app.use("/api/korapay", korapayRoutes);
-app.use("/api/flutterwave", flutterwaveRoutes);
-app.use("/api/transactions", transactionRoutes);
-app.use("/api/smspool", smspoolRoutes);
+app.use('/api/transactions', transactionRoutes);
+app.use('/api/smspool', smspoolRoutes);
+
+// ================= PAYMENT WEBHOOKS (SAFE) =================
+// IMPORTANT: Place webhook routes BEFORE paymentLimiter routes
+
+app.use("/api/paystack/webhook", webhookLimiter, paystackRoutes);
+app.use("/api/korapay/webhook", webhookLimiter, korapayRoutes);
+app.use("/api/flutterwave/webhook", webhookLimiter, flutterwaveRoutes);
+
+// ================= PAYMENT INITIALIZATION (STRICT) =================
+app.use("/api/paystack", paymentLimiter, paystackRoutes);
+app.use("/api/korapay", paymentLimiter, korapayRoutes);
+app.use("/api/flutterwave", paymentLimiter, flutterwaveRoutes);
 
 // ================= MONGODB =================
 mongoose
@@ -71,16 +223,16 @@ mongoose.connection.on('disconnected', () => {
   mongoose.connect(process.env.MONGODB_URI);
 });
 
-// ============== ERROR HANDLER =============
+// ================= GLOBAL ERROR HANDLER =================
 app.use((err, req, res, next) => {
   console.error('SERVER ERROR:', err.message);
   res.status(500).json({
     error: 'Something went wrong',
-    details: err.message,
+    ...(process.env.NODE_ENV === "development" && { details: err.message })
   });
 });
 
-// ============== START SERVER ==============
+// ================= START SERVER =================
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
