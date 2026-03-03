@@ -377,46 +377,41 @@ const getUserOrders = async (req, res) => {
   }
 };
 
-/* =====================================================
-   RESEND OTP
-===================================================== */
 const resendOtp = async (req, res) => {
   const { orderid } = req.body;
 
   if (!orderid) {
-    return res.status(400).json({
-      success: 0,
-      message: "Order ID is required",
-    });
+    return res.status(400).json({ success: 0, message: "Order ID is required" });
   }
 
   try {
     const order = await Order.findOne({ orderid, user: req.user.id });
 
     if (!order) {
-      return res.status(404).json({
-        success: 0,
-        message: "Order not found",
-      });
+      return res.status(404).json({ success: 0, message: "Order not found" });
     }
 
-    if (order.status !== "waiting") {
+    // ✅ Allow resending for "waiting" or "received" orders
+    if (order.status === "refunded" || order.status === "cancelled") {
       return res.status(400).json({
         success: 0,
-        message: "OTP can only be resent for waiting orders",
+        message: "Cannot resend OTP for refunded or cancelled orders",
       });
     }
 
-    // Trigger SMSPool resend
+    // Call SMSPool resend OTP API
     const response = await axios.post(
       `${SMSPOOL_BASE_URL}/sms/resend`,
       null,
-      {
-        params: { key: API_KEY, orderid },
-      }
+      { params: { key: API_KEY, orderid } }
     );
 
     if (response.data.success === 1) {
+      // Reset status to waiting so polling resumes
+      order.status = "waiting";
+      order.otp = null;
+      await order.save();
+
       return res.json({
         success: 1,
         message: "OTP resent successfully",
@@ -427,12 +422,10 @@ const resendOtp = async (req, res) => {
         message: response.data?.message || "Failed to resend OTP",
       });
     }
+
   } catch (err) {
     console.error("Resend OTP Error:", err.response?.data || err.message);
-    return res.status(500).json({
-      success: 0,
-      message: "Failed to resend OTP",
-    });
+    return res.status(500).json({ success: 0, message: "Failed to resend OTP" });
   }
 };
 
