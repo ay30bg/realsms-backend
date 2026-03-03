@@ -165,6 +165,7 @@ const allowedOrigins = [
   'http://localhost:3000',
   'https://realsms.vercel.app',
   'https://www.realsms.store',
+  'https://admin-realsms.vercel.app',
 ];
 
 app.use(cors({
@@ -241,6 +242,7 @@ const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
+
 
 
 
