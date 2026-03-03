@@ -377,6 +377,65 @@ const getUserOrders = async (req, res) => {
   }
 };
 
+/* =====================================================
+   RESEND OTP
+===================================================== */
+const resendOtp = async (req, res) => {
+  const { orderid } = req.body;
+
+  if (!orderid) {
+    return res.status(400).json({
+      success: 0,
+      message: "Order ID is required",
+    });
+  }
+
+  try {
+    const order = await Order.findOne({ orderid, user: req.user.id });
+
+    if (!order) {
+      return res.status(404).json({
+        success: 0,
+        message: "Order not found",
+      });
+    }
+
+    if (order.status !== "waiting") {
+      return res.status(400).json({
+        success: 0,
+        message: "OTP can only be resent for waiting orders",
+      });
+    }
+
+    // Trigger SMSPool resend
+    const response = await axios.post(
+      `${SMSPOOL_BASE_URL}/sms/resend`,
+      null,
+      {
+        params: { key: API_KEY, orderid },
+      }
+    );
+
+    if (response.data.success === 1) {
+      return res.json({
+        success: 1,
+        message: "OTP resent successfully",
+      });
+    } else {
+      return res.status(500).json({
+        success: 0,
+        message: response.data?.message || "Failed to resend OTP",
+      });
+    }
+  } catch (err) {
+    console.error("Resend OTP Error:", err.response?.data || err.message);
+    return res.status(500).json({
+      success: 0,
+      message: "Failed to resend OTP",
+    });
+  }
+};
+
 module.exports = {
   getServers,
   getServices,
@@ -384,4 +443,5 @@ module.exports = {
   getOtp,
   cancelOrder,
   getUserOrders,
+  resendOtp,
 };
