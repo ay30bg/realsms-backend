@@ -1,35 +1,25 @@
-const User = require("../models/User");
 const jwt = require("jsonwebtoken");
 
-// Admin login
 exports.adminLogin = async (req, res) => {
   const { email, password } = req.body;
 
-  try {
-    // Find admin user
-    const user = await User.findOne({ email });
+  const adminEmail = process.env.ADMIN_EMAIL;
+  const adminPassword = process.env.ADMIN_PASSWORD;
 
-    if (!user || user.role !== "admin") {
-      return res.status(401).json({ message: "Invalid credentials" });
-    }
-
-    // Password check (replace with bcrypt if hashed)
-    const isMatch = password === user.password;
-    if (!isMatch) {
-      return res.status(401).json({ message: "Invalid credentials" });
-    }
-
-    // Sign JWT
-    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
-      expiresIn: "7d",
-    });
-
-    res.json({
-      token,
-      user: { name: user.name, email: user.email, role: user.role },
-    });
-  } catch (err) {
-    console.error("Admin login error:", err);
-    res.status(500).json({ message: "Server error" });
+  // Check credentials
+  if (email !== adminEmail || password !== adminPassword) {
+    return res.status(401).json({ message: "Invalid credentials" });
   }
+
+  // Sign JWT
+  const token = jwt.sign(
+    { email, role: "admin" },
+    process.env.JWT_SECRET,
+    { expiresIn: process.env.JWT_EXPIRES_IN || "7d" }
+  );
+
+  res.json({
+    token,
+    user: { email, role: "admin", name: "Super Admin" },
+  });
 };
