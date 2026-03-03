@@ -646,42 +646,112 @@ const buyNumber = async (req, res) => {
   }
 };
 
+// /* =====================================================
+//    GET OTP
+// ===================================================== */
+// const getOtp = async (req, res) => {
+//   const { orderid } = req.body;
+//   if (!orderid) return res.status(400).json({ success: 0, message: "Order ID is required" });
+
+//   try {
+//     const response = await axios.post(`${SMSPOOL_BASE_URL}/sms/check`, null, { params: { key: API_KEY, orderid } });
+//     const status = Number(response.data.status);
+//     const sms = response.data.sms;
+
+//     const order = await Order.findOne({ orderid });
+//     if (!order) return res.status(404).json({ success: 0, message: "Order not found" });
+
+//     if (status === 3 && sms) {
+//       const otp = sms.match(/\d{4,6}/)?.[0];
+//       order.otp = otp;
+//       order.status = "received"; // OTP received, refund blocked
+//       await order.save();
+//       return res.json({ success: 1, otp, message: "OTP received" });
+//     }
+
+//     if (status === 4) {
+//       order.status = "cancelled";
+//       await order.save();
+//       return res.json({ success: 0, message: "Order expired or cancelled" });
+//     }
+
+//     return res.json({ success: 0, message: "OTP not yet available" });
+
+//   } catch (err) {
+//     console.error("OTP Error:", err.response?.data || err.message);
+//     res.status(500).json({ success: 0, message: "Failed to check OTP" });
+//   }
+// };
+
 /* =====================================================
-   GET OTP
+   CHECK OTP
 ===================================================== */
 const getOtp = async (req, res) => {
   const { orderid } = req.body;
-  if (!orderid) return res.status(400).json({ success: 0, message: "Order ID is required" });
+
+  if (!orderid) {
+    return res.status(400).json({
+      success: 0,
+      message: "Order ID is required",
+    });
+  }
 
   try {
-    const response = await axios.post(`${SMSPOOL_BASE_URL}/sms/check`, null, { params: { key: API_KEY, orderid } });
+    const response = await axios.post(
+      `${SMSPOOL_BASE_URL}/sms/check`,
+      null,
+      { params: { key: API_KEY, orderid } }
+    );
+
     const status = Number(response.data.status);
     const sms = response.data.sms;
 
     const order = await Order.findOne({ orderid });
-    if (!order) return res.status(404).json({ success: 0, message: "Order not found" });
+    if (!order) {
+      return res.status(404).json({
+        success: 0,
+        message: "Order not found",
+      });
+    }
 
     if (status === 3 && sms) {
       const otp = sms.match(/\d{4,6}/)?.[0];
+
       order.otp = otp;
-      order.status = "received"; // OTP received, refund blocked
+      order.status = "received";
       await order.save();
-      return res.json({ success: 1, otp, message: "OTP received" });
+
+      return res.json({
+        success: 1,
+        otp,
+        message: "OTP received",
+      });
     }
 
     if (status === 4) {
       order.status = "cancelled";
       await order.save();
-      return res.json({ success: 0, message: "Order expired or cancelled" });
+
+      return res.json({
+        success: 0,
+        message: "Order expired or cancelled",
+      });
     }
 
-    return res.json({ success: 0, message: "OTP not yet available" });
+    return res.json({
+      success: 0,
+      message: "OTP not yet available",
+    });
 
   } catch (err) {
     console.error("OTP Error:", err.response?.data || err.message);
-    res.status(500).json({ success: 0, message: "Failed to check OTP" });
+    res.status(500).json({
+      success: 0,
+      message: "Failed to check OTP",
+    });
   }
 };
+
 
 /* =====================================================
    RESEND OTP
