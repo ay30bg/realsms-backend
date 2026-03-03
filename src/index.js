@@ -103,6 +103,7 @@ const korapayRoutes = require("./routes/korapayRoutes");
 const flutterwaveRoutes = require("./routes/flutterwaveRoutes");
 const smspoolRoutes = require("./routes/smspoolRoutes");
 const transactionRoutes = require("./routes/transactionsRoutes");
+const adminRoutes = require("./routes/adminRoutes");
 
 const app = express();
 
@@ -191,11 +192,12 @@ app.get('/', (req, res) => {
 // AUTH (strict limiter)
 app.use('/api/auth', authLimiter, authRoutes);
 
-// WALLET / USDT / SMS
+// WALLET / USDT / SMS / ADMIN
 app.use('/api/usdt', usdtRoutes);
 app.use('/api/wallet', walletRoutes);
 app.use('/api/transactions', transactionRoutes);
 app.use('/api/smspool', smspoolRoutes);
+app.use("/api/admin", adminRoutes);
 
 // ================= PAYMENT WEBHOOKS (SAFE) =================
 // IMPORTANT: Place webhook routes BEFORE paymentLimiter routes
@@ -237,4 +239,5 @@ const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
+
 
