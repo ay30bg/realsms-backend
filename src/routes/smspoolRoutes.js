@@ -7,6 +7,7 @@ const {
   getOtp,
   cancelOrder,
   getUserOrders,
+  resendOtp, // ✅ import the new controller
 } = require("../controllers/smsController");
 const { protect } = require("../middleware/authMiddleware");
 
@@ -24,11 +25,13 @@ router.post("/buy", protect, buyNumber);
 // Get OTP for a purchased number (POST with body)
 router.post("/otp", protect, getOtp);
 
-// Get orders for a user (POST with body)
+// Resend OTP for a purchased number
+router.post("/resend", protect, resendOtp); // ✅ new endpoint
+
+// Get orders for a user
 router.get("/orders", protect, getUserOrders);
 
+// Cancel / refund order
 router.post("/cancel", protect, cancelOrder);
 
-
 module.exports = router;
-
