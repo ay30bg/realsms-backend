@@ -2,7 +2,40 @@ const User = require("../models/User");
 const Transaction = require("../models/Transaction");
 const Order = require("../models/Order");
 
-exports.getWeeklyStats = async (req, res) => {
+/**
+ * OVERVIEW
+ */
+exports.getOverviewAnalytics = async (req, res) => {
+  try {
+    const totalUsers = await User.countDocuments();
+    const totalOrders = await Order.countDocuments();
+    const totalTransactions = await Transaction.countDocuments({
+      status: "completed",
+    });
+
+    const revenueAgg = await Transaction.aggregate([
+      { $match: { status: "completed" } },
+      { $group: { _id: null, totalRevenue: { $sum: "$amount" } } },
+    ]);
+
+    const totalRevenue = revenueAgg[0]?.totalRevenue || 0;
+
+    res.json({
+      totalUsers,
+      totalOrders,
+      totalTransactions,
+      totalRevenue,
+    });
+  } catch (error) {
+    console.error("Overview analytics error:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+/**
+ * DAILY ANALYTICS
+ */
+exports.getDailyAnalytics = async (req, res) => {
   try {
     const days = parseInt(req.query.days) || 7;
 
@@ -11,106 +44,70 @@ exports.getWeeklyStats = async (req, res) => {
     startDate.setDate(endDate.getDate() - days);
     startDate.setHours(0, 0, 0, 0);
 
-    // 1️⃣ Users aggregation
-    const usersAgg = await User.aggregate([
-      {
-        $match: {
-          createdAt: { $gte: startDate, $lte: endDate },
-        },
-      },
-      {
-        $group: {
-          _id: {
-            $dateToString: { format: "%Y-%m-%d", date: "$createdAt" },
-          },
-          newUsers: { $sum: 1 },
-        },
-      },
-    ]);
+    const stats = [];
 
-    // 2️⃣ Transactions aggregation
-    const transactionsAgg = await Transaction.aggregate([
-      {
-        $match: {
-          status: "completed",
-          createdAt: { $gte: startDate, $lte: endDate },
-        },
-      },
-      {
-        $group: {
-          _id: {
-            $dateToString: { format: "%Y-%m-%d", date: "$createdAt" },
-          },
-          transactions: { $sum: 1 },
-          revenue: { $sum: "$amount" },
-        },
-      },
-    ]);
-
-    // 3️⃣ Orders aggregation
-    const ordersAgg = await Order.aggregate([
-      {
-        $match: {
-          createdAt: { $gte: startDate, $lte: endDate },
-        },
-      },
-      {
-        $group: {
-          _id: {
-            $dateToString: { format: "%Y-%m-%d", date: "$createdAt" },
-          },
-          orders: { $sum: 1 },
-        },
-      },
-    ]);
-
-    // Create date map
-    const statsMap = {};
-
-    // Initialize all days with zero values
     for (let i = 0; i < days; i++) {
-      const date = new Date(startDate);
-      date.setDate(startDate.getDate() + i);
-      const formatted = date.toISOString().split("T")[0];
+      const dayStart = new Date(startDate);
+      dayStart.setDate(startDate.getDate() + i);
+      dayStart.setHours(0, 0, 0, 0);
 
-      statsMap[formatted] = {
-        date: formatted,
-        newUsers: 0,
-        transactions: 0,
-        orders: 0,
-        revenue: 0,
-      };
+      const dayEnd = new Date(dayStart);
+      dayEnd.setHours(23, 59, 59, 999);
+
+      const newUsers = await User.countDocuments({
+        createdAt: { $gte: dayStart, $lte: dayEnd },
+      });
+
+      const transactions = await Transaction.find({
+        createdAt: { $gte: dayStart, $lte: dayEnd },
+        status: "completed",
+      });
+
+      const orders = await Order.countDocuments({
+        createdAt: { $gte: dayStart, $lte: dayEnd },
+      });
+
+      const revenue = transactions.reduce(
+        (sum, tx) => sum + tx.amount,
+        0
+      );
+
+      stats.push({
+        date: dayStart.toISOString().split("T")[0],
+        newUsers,
+        transactions: transactions.length,
+        orders,
+        revenue,
+      });
     }
 
-    // Merge users
-    usersAgg.forEach((item) => {
-      if (statsMap[item._id]) {
-        statsMap[item._id].newUsers = item.newUsers;
-      }
-    });
-
-    // Merge transactions
-    transactionsAgg.forEach((item) => {
-      if (statsMap[item._id]) {
-        statsMap[item._id].transactions = item.transactions;
-        statsMap[item._id].revenue = item.revenue;
-      }
-    });
-
-    // Merge orders
-    ordersAgg.forEach((item) => {
-      if (statsMap[item._id]) {
-        statsMap[item._id].orders = item.orders;
-      }
-    });
-
-    const finalStats = Object.values(statsMap).sort(
-      (a, b) => new Date(a.date) - new Date(b.date)
-    );
-
-    res.json(finalStats);
+    res.json(stats);
   } catch (error) {
-    console.error("Analytics error:", error);
+    console.error("Daily analytics error:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+/**
+ * MONTHLY ANALYTICS
+ */
+exports.getMonthlyAnalytics = async (req, res) => {
+  try {
+    const monthlyRevenue = await Transaction.aggregate([
+      { $match: { status: "completed" } },
+      {
+        $group: {
+          _id: { $month: "$createdAt" },
+          revenue: { $sum: "$amount" },
+          transactions: { $sum: 1 },
+        },
+      },
+      { $sort: { "_id": 1 } },
+    ]);
+
+    res.json(monthlyRevenue);
+  } catch (error) {
+    console.error("Monthly analytics error:", error);
     res.status(500).json({ message: "Server error" });
   }
 };
