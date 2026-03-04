@@ -67,22 +67,29 @@ exports.getAdminStats = async (req, res) => {
 /* ==============================
    GET ALL USERS
 ============================== */
-// adminController.js
 exports.getAllUsers = async (req, res) => {
   try {
-    const users = await User.find({}, "email walletBalanceNGN createdAt") // fetch required fields
-      .sort({ createdAt: -1 });
+    const { search = "", page = 1, limit = 10 } = req.query;
 
-    // Map walletBalanceNGN to balance for frontend
+    const query = {
+      email: { $regex: search, $options: "i" }, // case-insensitive search
+    };
+
+    const total = await User.countDocuments(query);
+    const users = await User.find(query, "email walletBalanceNGN createdAt")
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(Number(limit));
+
     const mappedUsers = users.map((u) => ({
       _id: u._id,
       email: u.email,
       balance: u.walletBalanceNGN,
-      status: "Active", // default if you don’t have a status field
+      status: "Active", // default if no status field
       dateJoined: u.createdAt,
     }));
 
-    res.json(mappedUsers);
+    res.json({ data: mappedUsers, total });
   } catch (error) {
     console.error("Fetch users error:", error);
     res.status(500).json({ message: "Failed to fetch users" });
