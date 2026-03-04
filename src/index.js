@@ -105,6 +105,7 @@ const smspoolRoutes = require("./routes/smspoolRoutes");
 const transactionRoutes = require("./routes/transactionsRoutes");
 const adminAuthRoutes = require("./routes/adminAuthRoutes");
 const adminRoutes = require("./routes/adminRoutes");
+const adminAnalyticsRoutes = require("./routes/adminAnalyticsRoutes");
 
 const app = express();
 
@@ -201,6 +202,7 @@ app.use('/api/transactions', transactionRoutes);
 app.use('/api/smspool', smspoolRoutes);
 app.use("/api/admin/auth", adminAuthRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/admin/analytics", adminAnalyticsRoutes);
 
 // ================= PAYMENT WEBHOOKS (SAFE) =================
 // IMPORTANT: Place webhook routes BEFORE paymentLimiter routes
@@ -242,6 +244,7 @@ const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
+
 
 
 
