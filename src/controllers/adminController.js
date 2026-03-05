@@ -162,21 +162,6 @@ exports.deleteUser = async (req, res) => {
   }
 };
 
-// /* ==============================
-//    GET ALL TRANSACTIONS
-// ============================== */
-// exports.getAllTransactions = async (req, res) => {
-//   try {
-//     const transactions = await Transaction.find()
-//       .populate("user", "email")
-//       .sort({ createdAt: -1 });
-//     res.json(transactions);
-//   } catch (error) {
-//     console.error("Fetch transactions error:", error);
-//     res.status(500).json({ message: "Failed to fetch transactions" });
-//   }
-// };
-
 /* ==============================
    GET ALL TRANSACTIONS (WITH SEARCH & PAGINATION)
 ============================== */
@@ -235,6 +220,40 @@ exports.getAllTransactions = async (req, res) => {
   } catch (error) {
     console.error("Fetch transactions error:", error);
     res.status(500).json({ success: false, message: "Failed to fetch transactions" });
+  }
+};
+
+/* ==============================
+   CONFIRM PENDING TRANSACTION
+============================== */
+exports.confirmTransaction = async (req, res) => {
+  try {
+    const { id } = req.params; // transaction _id
+
+    // Find the transaction
+    const transaction = await Transaction.findById(id).populate("user");
+    if (!transaction) {
+      return res.status(404).json({ success: false, message: "Transaction not found" });
+    }
+
+    if (transaction.status === "SUCCESS") {
+      return res.status(400).json({ success: false, message: "Transaction already confirmed" });
+    }
+
+    // Update transaction status
+    transaction.status = "SUCCESS";
+    await transaction.save();
+
+    // Optionally, update user's wallet balance
+    if (transaction.user) {
+      transaction.user.walletBalanceNGN += transaction.amount;
+      await transaction.user.save();
+    }
+
+    res.json({ success: true, message: "Transaction confirmed successfully" });
+  } catch (error) {
+    console.error("Confirm transaction error:", error);
+    res.status(500).json({ success: false, message: "Failed to confirm transaction" });
   }
 };
 
