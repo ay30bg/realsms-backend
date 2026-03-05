@@ -270,16 +270,6 @@ exports.confirmTransaction = async (req, res) => {
 // /* ==============================
 //    GET ALL ORDERS
 // ============================== */
-// exports.getAllOrders = async (req, res) => {
-//   try {
-//     const orders = await Order.find().sort({ createdAt: -1 });
-//     res.json(orders);
-//   } catch (error) {
-//     console.error("Fetch orders error:", error);
-//     res.status(500).json({ message: "Failed to fetch orders" });
-//   }
-// };
-
 exports.getAllOrders = async (req, res) => {
   try {
     const orders = await Order.find()
