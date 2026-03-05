@@ -223,6 +223,16 @@ exports.getAllTransactions = async (req, res) => {
   }
 };
 
+exports.getPendingTransactionsCount = async (req, res) => {
+  try {
+    const count = await Transaction.countDocuments({ status: "PENDING" });
+    res.json({ success: true, pendingCount: count });
+  } catch (error) {
+    console.error("Fetch pending count error:", error);
+    res.status(500).json({ success: false, message: "Failed to fetch pending count" });
+  }
+};
+
 /* ==============================
    CONFIRM PENDING TRANSACTION
 ============================== */
