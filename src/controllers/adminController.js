@@ -162,6 +162,21 @@ exports.deleteUser = async (req, res) => {
   }
 };
 
+// /* ==============================
+//    GET ALL TRANSACTIONS
+// ============================== */
+// exports.getAllTransactions = async (req, res) => {
+//   try {
+//     const transactions = await Transaction.find()
+//       .populate("user", "email")
+//       .sort({ createdAt: -1 });
+//     res.json(transactions);
+//   } catch (error) {
+//     console.error("Fetch transactions error:", error);
+//     res.status(500).json({ message: "Failed to fetch transactions" });
+//   }
+// };
+
 /* ==============================
    GET ALL TRANSACTIONS
 ============================== */
@@ -170,10 +185,28 @@ exports.getAllTransactions = async (req, res) => {
     const transactions = await Transaction.find()
       .populate("user", "email")
       .sort({ createdAt: -1 });
-    res.json(transactions);
+
+    const mappedTransactions = transactions.map((t) => ({
+      ref: t.reference || t._id,
+      user: t.user?.email || "Unknown",
+      amount: t.amount,
+      status: t.status,
+      method: t.method || t.gateway || "N/A",
+      date: t.createdAt,
+    }));
+
+    res.json({
+      success: true,
+      data: mappedTransactions,
+    });
+
   } catch (error) {
     console.error("Fetch transactions error:", error);
-    res.status(500).json({ message: "Failed to fetch transactions" });
+
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch transactions",
+    });
   }
 };
 
