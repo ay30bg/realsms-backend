@@ -272,13 +272,37 @@ exports.confirmTransaction = async (req, res) => {
 // ============================== */
 exports.getAllOrders = async (req, res) => {
   try {
-    const orders = await Order.find()
-      .populate("user", "email") // IMPORTANT
-      .sort({ createdAt: -1 });
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 8;
+    const search = req.query.search || "";
 
-    res.json(orders);
-  } catch (error) {
-    console.error("Fetch orders error:", error);
+    const query = {};
+
+    // Search by user's email or OTP
+    if (search) {
+      query.$or = [
+        { otp: { $regex: search, $options: "i" } },
+        { /* search by user email */ },
+      ];
+    }
+
+    // Populate user email
+    const orders = await Order.find(query)
+      .populate("user", "email")
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit);
+
+    const total = await Order.countDocuments(query);
+
+    res.json({
+      data: orders,
+      page,
+      total,
+      totalPages: Math.ceil(total / limit),
+    });
+  } catch (err) {
+    console.error(err);
     res.status(500).json({ message: "Failed to fetch orders" });
   }
 };
