@@ -177,31 +177,50 @@ exports.deleteUser = async (req, res) => {
 //   }
 // };
 
+/* ==============================
+   GET ALL TRANSACTIONS (WITH SEARCH & PAGINATION)
+============================== */
 exports.getAllTransactions = async (req, res) => {
   try {
-    const transactions = await Transaction.find()
-      .populate("user", "email") // make sure User exists
-      .sort({ createdAt: -1 });
+    let { search = "", page = 1, limit = 10 } = req.query;
 
+    page = Number(page);
+    limit = Number(limit);
+
+    // Build search query
+    const query = search
+      ? { reference: { $regex: search, $options: "i" } }
+      : {};
+
+    const total = await Transaction.countDocuments(query);
+
+    const transactions = await Transaction.find(query)
+      .populate("user", "email")
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit);
+
+    // Map for frontend
     const mappedTransactions = transactions.map((t) => ({
+      _id: t._id,
       ref: t.reference,
-      user: t.user?.email || "[User deleted]",
+      user: t.user?.email || "Unknown",
       amount: t.amount,
       status: t.status,
       method: t.provider,
-      date: t.createdAt ? new Date(t.createdAt).toLocaleDateString() : "N/A",
+      date: t.createdAt?.toISOString() || "N/A",
     }));
 
     res.json({
       success: true,
       data: mappedTransactions,
+      total,
+      page,
+      totalPages: Math.ceil(total / limit),
     });
   } catch (error) {
     console.error("Fetch transactions error:", error);
-    res.status(500).json({
-      success: false,
-      message: "Failed to fetch transactions",
-    });
+    res.status(500).json({ success: false, message: "Failed to fetch transactions" });
   }
 };
 
