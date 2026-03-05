@@ -270,39 +270,103 @@ exports.confirmTransaction = async (req, res) => {
 // /* ==============================
 //    GET ALL ORDERS
 // ============================== */
+// exports.getAllOrders = async (req, res) => {
+//   try {
+//     const page = parseInt(req.query.page) || 1;
+//     const limit = parseInt(req.query.limit) || 8;
+//     const search = req.query.search || "";
+
+//     const query = {};
+
+//     // Search by user's email or OTP
+//     if (search) {
+//       query.$or = [
+//         { otp: { $regex: search, $options: "i" } },
+//         { /* search by user email */ },
+//       ];
+//     }
+
+//     // Populate user email
+//     const orders = await Order.find(query)
+//       .populate("user", "email")
+//       .sort({ createdAt: -1 })
+//       .skip((page - 1) * limit)
+//       .limit(limit);
+
+//     const total = await Order.countDocuments(query);
+
+//     res.json({
+//       data: orders,
+//       page,
+//       total,
+//       totalPages: Math.ceil(total / limit),
+//     });
+//   } catch (err) {
+//     console.error(err);
+//     res.status(500).json({ message: "Failed to fetch orders" });
+//   }
+// };
+
+/* ==============================
+   GET ALL ORDERS (WITH SEARCH & PAGINATION)
+============================== */
 exports.getAllOrders = async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 8;
     const search = req.query.search || "";
 
-    const query = {};
+    const pageNum = page;
+    const limitNum = limit;
 
-    // Search by user's email or OTP
+    let query = {};
+
     if (search) {
+      // Find users whose email matches the search term
+      const matchedUsers = await User.find(
+        { email: { $regex: search, $options: "i" } },
+        "_id"
+      );
+      const userIds = matchedUsers.map((u) => u._id);
+
+      // Search in OTP or user email
       query.$or = [
         { otp: { $regex: search, $options: "i" } },
-        { /* search by user email */ },
+        { user: { $in: userIds } },
       ];
     }
 
-    // Populate user email
+    // Count total orders matching query
+    const total = await Order.countDocuments(query);
+
+    // Fetch orders with pagination and populate user email
     const orders = await Order.find(query)
       .populate("user", "email")
       .sort({ createdAt: -1 })
-      .skip((page - 1) * limit)
-      .limit(limit);
+      .skip((pageNum - 1) * limitNum)
+      .limit(limitNum);
 
-    const total = await Order.countDocuments(query);
+    // Map to frontend-friendly format
+    const mappedOrders = orders.map((o) => ({
+      _id: o._id,
+      user: o.user?.email || "Unknown",
+      otp: o.otp || "",
+      service: o.service?.name || "",
+      country: o.country?.code || "",
+      number: o.number,
+      priceCharged: o.priceCharged,
+      status: o.status,
+      createdAt: o.createdAt,
+    }));
 
     res.json({
-      data: orders,
-      page,
+      data: mappedOrders,
+      page: pageNum,
       total,
-      totalPages: Math.ceil(total / limit),
+      totalPages: Math.ceil(total / limitNum),
     });
   } catch (err) {
-    console.error(err);
+    console.error("Fetch orders error:", err);
     res.status(500).json({ message: "Failed to fetch orders" });
   }
 };
