@@ -180,16 +180,16 @@ exports.deleteUser = async (req, res) => {
 exports.getAllTransactions = async (req, res) => {
   try {
     const transactions = await Transaction.find()
-      .populate("user", "email")
+      .populate("user", "email") // make sure User exists
       .sort({ createdAt: -1 });
 
     const mappedTransactions = transactions.map((t) => ({
       ref: t.reference,
-      user: t.user?.email || "Unknown",
+      user: t.user?.email || "[User deleted]",
       amount: t.amount,
       status: t.status,
       method: t.provider,
-      date: t.createdAt,
+      date: t.createdAt ? new Date(t.createdAt).toLocaleDateString() : "N/A",
     }));
 
     res.json({
