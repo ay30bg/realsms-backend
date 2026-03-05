@@ -177,9 +177,6 @@ exports.deleteUser = async (req, res) => {
 //   }
 // };
 
-/* ==============================
-   GET ALL TRANSACTIONS
-============================== */
 exports.getAllTransactions = async (req, res) => {
   try {
     const transactions = await Transaction.find()
@@ -187,11 +184,11 @@ exports.getAllTransactions = async (req, res) => {
       .sort({ createdAt: -1 });
 
     const mappedTransactions = transactions.map((t) => ({
-      ref: t.reference || t._id,
+      ref: t.reference,
       user: t.user?.email || "Unknown",
       amount: t.amount,
       status: t.status,
-      method: t.method || t.gateway || "N/A",
+      method: t.provider,
       date: t.createdAt,
     }));
 
@@ -199,10 +196,8 @@ exports.getAllTransactions = async (req, res) => {
       success: true,
       data: mappedTransactions,
     });
-
   } catch (error) {
     console.error("Fetch transactions error:", error);
-
     res.status(500).json({
       success: false,
       message: "Failed to fetch transactions",
