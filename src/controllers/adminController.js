@@ -182,25 +182,40 @@ exports.deleteUser = async (req, res) => {
 ============================== */
 exports.getAllTransactions = async (req, res) => {
   try {
-    let { search = "", page = 1, limit = 10 } = req.query;
+    const { search = "", page = 1, limit = 10 } = req.query;
 
-    page = Number(page);
-    limit = Number(limit);
+    // Convert page & limit to numbers
+    const pageNum = Number(page);
+    const limitNum = Number(limit);
 
     // Build search query
-    const query = search
-      ? { reference: { $regex: search, $options: "i" } }
-      : {};
+    let query = {};
+
+    if (search) {
+      // Find users matching email search
+      const matchedUsers = await User.find(
+        { email: { $regex: search, $options: "i" } },
+        "_id"
+      );
+      const userIds = matchedUsers.map((u) => u._id);
+
+      query = {
+        $or: [
+          { reference: { $regex: search, $options: "i" } },
+          { user: { $in: userIds } },
+        ],
+      };
+    }
 
     const total = await Transaction.countDocuments(query);
 
     const transactions = await Transaction.find(query)
       .populate("user", "email")
       .sort({ createdAt: -1 })
-      .skip((page - 1) * limit)
-      .limit(limit);
+      .skip((pageNum - 1) * limitNum)
+      .limit(limitNum);
 
-    // Map for frontend
+    // Map to frontend-friendly format
     const mappedTransactions = transactions.map((t) => ({
       _id: t._id,
       ref: t.reference,
@@ -208,15 +223,14 @@ exports.getAllTransactions = async (req, res) => {
       amount: t.amount,
       status: t.status,
       method: t.provider,
-      date: t.createdAt?.toISOString() || "N/A",
+      date: t.createdAt,
     }));
 
     res.json({
       success: true,
       data: mappedTransactions,
       total,
-      page,
-      totalPages: Math.ceil(total / limit),
+      totalPages: Math.ceil(total / limitNum),
     });
   } catch (error) {
     console.error("Fetch transactions error:", error);
