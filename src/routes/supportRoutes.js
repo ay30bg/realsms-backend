@@ -38,14 +38,14 @@ const {
 } = require("../controllers/supportController");
 
 const { protect, adminOnly } = require("../middleware/adminAuthMiddleware");
-const { protectUser } = require("../middleware/authMiddleware");
+const { protect } = require("../middleware/authMiddleware");
 
 // ---------------- User Routes ---------------- //
 // User sends message
-router.post("/send", protectUser, sendMessage);
+router.post("/send", protect, sendMessage);
 
 // User fetch messages
-router.get("/user", protectUser, getUserMessages);
+router.get("/user", protect, getUserMessages);
 
 // ---------------- Admin Routes ---------------- //
 // Admin fetch all conversations
