@@ -19,6 +19,9 @@ const adminAuthRoutes = require("./routes/adminAuthRoutes");
 const adminRoutes = require("./routes/adminRoutes");
 const adminAnalyticsRoutes = require("./routes/adminAnalyticsRoutes");
 
+// CRON JOBS
+require("./cron/transactionCleanup");
+
 const app = express();
 
 // ================= TRUST PROXY =================
@@ -156,6 +159,7 @@ const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
+
 
 
 
